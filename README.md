@@ -46,31 +46,45 @@ MVP-бот для ваших учеников:
 - Планировщик каждый день в `00:00` по `TIMEZONE` генерирует тесты на три сложности для всех учеников.
 - Админ может вручную нажать `Сгенерировать задания`.
 
-## Деплой на VPS (базовый путь)
-1. На локали:
+## Деплой на VPS через Docker
+1. Установите Docker + Compose plugin:
    ```bash
-   git init
-   git add .
-   git commit -m "init bot mvp"
-   git remote add origin <your_repo_url>
-   git push -u origin main
+   apt update && apt upgrade -y
+   apt install -y ca-certificates curl gnupg
+   install -m 0755 -d /etc/apt/keyrings
+   curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+   chmod a+r /etc/apt/keyrings/docker.asc
+   echo \
+     "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+     $(. /etc/os-release && echo $VERSION_CODENAME) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+   apt update
+   apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
    ```
-2. На VPS:
+2. Клонируйте проект:
    ```bash
-   git clone <your_repo_url>
-   cd tlg_bot_dz
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
+   mkdir -p /opt/projects
+   cd /opt/projects
+   git clone <your_repo_url> bot_tlg_repetitor_dz
+   cd bot_tlg_repetitor_dz
+   ```
+3. Подготовьте `.env`:
+   ```bash
    cp .env.example .env
-   # заполнить .env
-   python -m src.main
+   nano .env
    ```
-3. Обновление на VPS:
+4. Первый запуск в фоне:
+   ```bash
+   docker compose up -d --build
+   ```
+5. Проверка:
+   ```bash
+   docker compose ps
+   docker compose logs -f bot
+   ```
+6. Обновление версии:
    ```bash
    git pull
-   source .venv/bin/activate
-   pip install -r requirements.txt
+   docker compose up -d --build
    ```
 
 ## Что дальше

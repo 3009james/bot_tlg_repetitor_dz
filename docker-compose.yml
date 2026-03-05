@@ -1,0 +1,9 @@
+services:
+  bot:
+    build: .
+    container_name: tlg_bot_repetitor
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data

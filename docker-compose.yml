@@ -3,6 +3,16 @@ services:
     build: .
     container_name: tlg_bot_repetitor
     restart: unless-stopped
+    command: ["python", "-m", "src.main"]
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+  api:
+    build: .
+    container_name: tlg_bot_api
+    restart: unless-stopped
+    command: ["uvicorn", "src.webapi.app:app", "--host", "0.0.0.0", "--port", "8000"]
     env_file:
       - .env
     volumes:
@@ -11,7 +21,10 @@ services:
     image: nginx:1.27-alpine
     container_name: tlg_bot_webapp
     restart: unless-stopped
+    depends_on:
+      - api
     ports:
       - "8080:80"
     volumes:
       - ./webapp:/usr/share/nginx/html:ro
+      - ./webapp/nginx.conf:/etc/nginx/conf.d/default.conf:ro

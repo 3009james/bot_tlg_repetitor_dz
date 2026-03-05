@@ -8,7 +8,14 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from src.bot.keyboards.common import difficulty_kb, mode_kb, next_question_kb, question_options_kb, student_home_kb
+from src.bot.keyboards.common import (
+    difficulty_kb,
+    mode_kb,
+    next_question_kb,
+    question_options_kb,
+    student_home_kb,
+    student_webapp_kb,
+)
 from src.bot.states import StudentFlowState
 from src.db.models import Difficulty, QuizStatus, UserRole
 from src.db.repo import BotRepo
@@ -35,7 +42,14 @@ async def _get_student(repo: BotRepo, telegram_id: int):
 
 
 @router.message(F.text == "Пройти обучение")
-async def start_learning(message: Message, state: FSMContext, session_factory) -> None:
+async def start_learning(message: Message, state: FSMContext, settings, session_factory) -> None:
+    if settings.webapp_url:
+        await state.clear()
+        await message.answer(
+            "Обучение доступно в приложении. Нажмите кнопку ниже.",
+            reply_markup=student_webapp_kb(settings.webapp_url),
+        )
+        return
     async with session_scope(session_factory) as session:
         repo = BotRepo(session)
         student = await _get_student(repo, message.from_user.id)

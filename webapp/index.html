@@ -11,28 +11,41 @@
     <main class="app-shell">
       <section class="card">
         <p class="kicker">Telegram Mini App</p>
-        <h1>Ежедневная тренировка</h1>
-        <p class="subtitle">Выберите режим и сложность. Тест запустится в чате с ботом.</p>
+        <h1 id="title">Ежедневная тренировка</h1>
+        <p class="subtitle" id="subtitle">Все обучение проходит внутри приложения.</p>
 
-        <div class="group">
-          <label class="group-title">Режим</label>
-          <div class="chips" id="modeGroup">
-            <button class="chip chip-active" data-mode="test">Тестирование</button>
-            <button class="chip" data-mode="manual">Вручную</button>
+        <div id="setupSection">
+          <div class="group">
+            <label class="group-title">Режим</label>
+            <div class="chips" id="modeGroup">
+              <button class="chip chip-active" data-mode="test">Тестирование</button>
+              <button class="chip" data-mode="manual">Вручную</button>
+            </div>
           </div>
+
+          <div class="group">
+            <label class="group-title">Сложность</label>
+            <div class="chips" id="difficultyGroup">
+              <button class="chip chip-active" data-difficulty="easy">Легко</button>
+              <button class="chip" data-difficulty="medium">Средне</button>
+              <button class="chip" data-difficulty="hard">Сложно</button>
+            </div>
+          </div>
+
+          <button class="primary-btn" id="startBtn">Начать тест</button>
         </div>
 
-        <div class="group">
-          <label class="group-title">Сложность</label>
-          <div class="chips" id="difficultyGroup">
-            <button class="chip chip-active" data-difficulty="easy">Легко</button>
-            <button class="chip" data-difficulty="medium">Средне</button>
-            <button class="chip" data-difficulty="hard">Сложно</button>
+        <div id="quizSection" class="hidden">
+          <div class="quiz-head">
+            <span id="progressText">Задание 1/10</span>
           </div>
+          <p class="question" id="questionText"></p>
+          <div class="options" id="optionsWrap"></div>
+          <div class="feedback hidden" id="feedbackBox"></div>
+          <button class="secondary-btn hidden" id="nextBtn">Следующее задание</button>
         </div>
 
-        <button class="primary-btn" id="startBtn">Запустить</button>
-        <p class="hint">Тема: тёмно-синий интерфейс для ежедневных заданий.</p>
+        <p class="hint" id="hintText">Тема: тёмно-синий интерфейс для ежедневных заданий.</p>
       </section>
     </main>
 

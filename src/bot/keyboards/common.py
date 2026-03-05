@@ -19,7 +19,6 @@ def student_webapp_kb(webapp_url: str) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="Открыть приложение", web_app=WebAppInfo(url=webapp_url))],
-            [KeyboardButton(text="Пройти обучение")],
         ],
         resize_keyboard=True,
     )

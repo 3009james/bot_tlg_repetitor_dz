@@ -21,6 +21,9 @@ DIFFICULTY_MAP = {
     "Легко": Difficulty.EASY,
     "Средне": Difficulty.MEDIUM,
     "Сложно": Difficulty.HARD,
+    "easy": Difficulty.EASY,
+    "medium": Difficulty.MEDIUM,
+    "hard": Difficulty.HARD,
 }
 
 
@@ -62,6 +65,10 @@ async def run_test(message: Message, state: FSMContext, settings, session_factor
         await message.answer("Выберите кнопку сложности.")
         return
 
+    await _run_test_for_difficulty(message, state, settings, session_factory, quiz_service, difficulty)
+
+
+async def _run_test_for_difficulty(message: Message, state: FSMContext, settings, session_factory, quiz_service, difficulty):
     today = datetime.now(ZoneInfo(settings.timezone)).date()
     async with session_scope(session_factory) as session:
         repo = BotRepo(session)
@@ -73,6 +80,34 @@ async def run_test(message: Message, state: FSMContext, settings, session_factor
         await repo.get_or_create_progress(quiz.id, student.id)
     await state.clear()
     await send_question(message, session_factory, quiz.id, 1)
+
+
+@router.message(F.web_app_data)
+async def handle_webapp_data(message: Message, state: FSMContext, settings, session_factory, quiz_service) -> None:
+    if not message.web_app_data or not message.web_app_data.data:
+        return
+    try:
+        payload = json.loads(message.web_app_data.data)
+    except json.JSONDecodeError:
+        await message.answer("Некорректные данные из приложения.")
+        return
+
+    action = str(payload.get("action", "")).strip().lower()
+    if action == "manual":
+        await state.clear()
+        await message.answer("Режим вручную добавим следующим этапом.")
+        return
+    if action != "start_quiz":
+        await message.answer("Неизвестная команда приложения.")
+        return
+
+    difficulty_raw = str(payload.get("difficulty", "")).strip().lower()
+    difficulty = DIFFICULTY_MAP.get(difficulty_raw)
+    if difficulty is None:
+        await message.answer("Не выбрана сложность.")
+        return
+
+    await _run_test_for_difficulty(message, state, settings, session_factory, quiz_service, difficulty)
 
 
 async def send_question(target, session_factory, quiz_id: int, position: int) -> None:
@@ -100,6 +135,10 @@ async def answer_question(callback: CallbackQuery, session_factory) -> None:
         user = await repo.get_user_by_telegram(callback.from_user.id)
         if not user or user.role != UserRole.STUDENT:
             await callback.answer("Нет доступа", show_alert=True)
+            return
+        quiz = await repo.get_quiz_by_id(quiz_id)
+        if not quiz or quiz.student_id != user.id:
+            await callback.answer("Нет доступа к этому тесту", show_alert=True)
             return
         progress = await repo.get_or_create_progress(quiz_id, user.id)
         question = await repo.get_quiz_question(quiz_id, position)
@@ -146,5 +185,13 @@ async def answer_question(callback: CallbackQuery, session_factory) -> None:
 @router.callback_query(F.data.startswith("next:"))
 async def next_question(callback: CallbackQuery, session_factory) -> None:
     _, quiz_id_raw, position_raw = callback.data.split(":")
-    await send_question(callback.message, session_factory, int(quiz_id_raw), int(position_raw))
+    quiz_id = int(quiz_id_raw)
+    async with session_scope(session_factory) as session:
+        repo = BotRepo(session)
+        user = await repo.get_user_by_telegram(callback.from_user.id)
+        quiz = await repo.get_quiz_by_id(quiz_id)
+        if not user or user.role != UserRole.STUDENT or not quiz or quiz.student_id != user.id:
+            await callback.answer("Нет доступа к этому тесту", show_alert=True)
+            return
+    await send_question(callback.message, session_factory, quiz_id, int(position_raw))
     await callback.answer()

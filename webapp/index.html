@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tutor Mini App</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="card">
+        <p class="kicker">Telegram Mini App</p>
+        <h1>Ежедневная тренировка</h1>
+        <p class="subtitle">Выберите режим и сложность. Тест запустится в чате с ботом.</p>
+
+        <div class="group">
+          <label class="group-title">Режим</label>
+          <div class="chips" id="modeGroup">
+            <button class="chip chip-active" data-mode="test">Тестирование</button>
+            <button class="chip" data-mode="manual">Вручную</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <label class="group-title">Сложность</label>
+          <div class="chips" id="difficultyGroup">
+            <button class="chip chip-active" data-difficulty="easy">Легко</button>
+            <button class="chip" data-difficulty="medium">Средне</button>
+            <button class="chip" data-difficulty="hard">Сложно</button>
+          </div>
+        </div>
+
+        <button class="primary-btn" id="startBtn">Запустить</button>
+        <p class="hint">Тема: тёмно-синий интерфейс для ежедневных заданий.</p>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

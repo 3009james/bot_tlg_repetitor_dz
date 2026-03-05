@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     routerai_api_key: str = Field(default="", alias="ROUTERAI_API_KEY")
     routerai_base_url: str = Field(default="https://api.routerai.ru/v1", alias="ROUTERAI_BASE_URL")
     routerai_model: str = Field(default="gpt-4o-mini", alias="ROUTERAI_MODEL")
+    webapp_url: str = Field(default="", alias="WEBAPP_URL")
 
     db_path: str = Field(default="./data/bot.sqlite3", alias="DB_PATH")
     timezone: str = Field(default="Europe/Moscow", alias="TIMEZONE")

@@ -7,3 +7,11 @@ services:
       - .env
     volumes:
       - ./data:/app/data
+  webapp:
+    image: nginx:1.27-alpine
+    container_name: tlg_bot_webapp
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./webapp:/usr/share/nginx/html:ro

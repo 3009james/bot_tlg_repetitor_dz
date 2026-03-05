@@ -5,7 +5,7 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
-from src.bot.keyboards.common import admin_home_kb, student_home_kb, unknown_user_kb
+from src.bot.keyboards.common import admin_home_kb, student_home_kb, student_webapp_kb, unknown_user_kb
 from src.bot.states import RequestAccessState
 from src.db.models import UserRole
 from src.db.repo import BotRepo
@@ -35,11 +35,14 @@ async def start_handler(message: Message, settings, session_factory) -> None:
         return
 
     if user.role == UserRole.STUDENT:
-        greeting = f"Здравствуйте, {user.full_name}.\nНажмите «Пройти обучение»."
+        greeting = f"Здравствуйте, {user.full_name}.\nОткройте приложение для запуска обучения."
+        reply_markup = student_home_kb()
+        if settings.webapp_url:
+            reply_markup = student_webapp_kb(settings.webapp_url)
         if user.photo_file_id:
-            await message.answer_photo(user.photo_file_id, caption=greeting, reply_markup=student_home_kb())
+            await message.answer_photo(user.photo_file_id, caption=greeting, reply_markup=reply_markup)
         else:
-            await message.answer(greeting, reply_markup=student_home_kb())
+            await message.answer(greeting, reply_markup=reply_markup)
         return
 
     await message.answer(

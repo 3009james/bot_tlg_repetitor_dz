@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
 
 def unknown_user_kb() -> ReplyKeyboardMarkup:
@@ -11,6 +11,16 @@ def unknown_user_kb() -> ReplyKeyboardMarkup:
 def student_home_kb() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="Пройти обучение")]],
+        resize_keyboard=True,
+    )
+
+
+def student_webapp_kb(webapp_url: str) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Открыть приложение", web_app=WebAppInfo(url=webapp_url))],
+            [KeyboardButton(text="Пройти обучение")],
+        ],
         resize_keyboard=True,
     )
 

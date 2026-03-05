@@ -7,6 +7,7 @@ MVP-бот для ваших учеников:
 - сжатие материала урока (через RouterAI API или fallback)
 - генерация ежедневных тестов в `00:00` (easy/medium/hard)
 - прохождение теста по одному вопросу с вариантами ответа
+- запуск через Telegram Mini App (темно-синяя тема)
 
 ## Технологии
 - Python 3.11+
@@ -26,6 +27,7 @@ MVP-бот для ваших учеников:
    - `BOT_TOKEN`
    - `ADMIN_TELEGRAM_IDS` (через запятую)
    - `ROUTERAI_API_KEY` (если пусто, будет fallback-генерация)
+   - `WEBAPP_URL` (публичный `https://` URL mini app)
 4. Запуск:
    ```bash
    python -m src.main
@@ -86,6 +88,15 @@ MVP-бот для ваших учеников:
    git pull
    docker compose up -d --build
    ```
+
+## Mini App (темно-синий интерфейс)
+- Фронтенд лежит в папке `webapp/` и поднимается контейнером `webapp` (nginx).
+- В `docker-compose.yml` Mini App доступен на порту `8080` VPS.
+- Для Telegram Mini App нужен публичный `https://` URL. На практике:
+  1. домен -> VPS,
+  2. reverse proxy с TLS (Nginx/Caddy/Traefik или Cloudflare Tunnel),
+  3. в `.env` бота указать `WEBAPP_URL=https://your-domain.example`.
+- После `/start` студент увидит кнопку `Открыть приложение`.
 
 ## Что дальше
 - добавить полноценный режим `Вручную`

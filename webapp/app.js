@@ -46,7 +46,16 @@
   const uploadBtn = document.getElementById("uploadBtn");
   const uploadStatus = document.getElementById("uploadStatus");
 
+  if (!title || !subtitle) {
+    const fallback = document.querySelector(".subtitle");
+    if (fallback) {
+      fallback.textContent = "Фронтенд не обновился. Перезапустите webapp и откройте Mini App заново.";
+    }
+    return;
+  }
+
   function showError(message) {
+    if (!errorText) return;
     if (!message) {
       errorText.classList.add("hidden");
       errorText.textContent = "";
@@ -57,6 +66,7 @@
   }
 
   function activateByData(container, key, value) {
+    if (!container) return;
     const items = container.querySelectorAll("button");
     items.forEach((btn) => {
       btn.classList.toggle("chip-active", btn.dataset[key] === value);
@@ -64,18 +74,18 @@
   }
 
   function showRoleView(role) {
-    studentView.classList.add("hidden");
-    pendingView.classList.add("hidden");
-    adminView.classList.add("hidden");
+    if (studentView) studentView.classList.add("hidden");
+    if (pendingView) pendingView.classList.add("hidden");
+    if (adminView) adminView.classList.add("hidden");
     if (role === "admin") {
-      adminView.classList.remove("hidden");
+      if (adminView) adminView.classList.remove("hidden");
       return;
     }
     if (role === "student") {
-      studentView.classList.remove("hidden");
+      if (studentView) studentView.classList.remove("hidden");
       return;
     }
-    pendingView.classList.remove("hidden");
+    if (pendingView) pendingView.classList.remove("hidden");
   }
 
   async function api(path, options = {}) {
@@ -108,6 +118,7 @@
   }
 
   function renderQuestion(payload) {
+    if (!progressText || !questionText || !optionsWrap || !feedbackBox || !nextBtn) return;
     currentQuizId = payload.quiz_id;
     progressText.textContent = "Задание " + payload.position + "/" + payload.total;
     questionText.textContent = payload.question.text;
@@ -178,6 +189,7 @@
   }
 
   function fillUploadStudents(items) {
+    if (!uploadStudentSelect) return;
     uploadStudentSelect.innerHTML = "";
     items.forEach((student) => {
       const opt = document.createElement("option");
@@ -188,6 +200,7 @@
   }
 
   function renderRequests(items) {
+    if (!requestsWrap) return;
     requestsWrap.innerHTML = "";
     if (!items.length) {
       requestsWrap.innerHTML = '<div class="admin-item">Новых заявок нет.</div>';
@@ -237,6 +250,7 @@
   }
 
   function renderStudents(items) {
+    if (!studentsWrap) return;
     studentsWrap.innerHTML = "";
     if (!items.length) {
       studentsWrap.innerHTML = '<div class="admin-item">Учеников пока нет.</div>';
@@ -304,6 +318,7 @@
 
   async function loadPendingState() {
     const status = await api("/api/access/status");
+    if (!pendingStatus) return;
     if (status.has_pending_request) {
       pendingStatus.textContent = "Заявка уже отправлена и ожидает решения.";
     } else {
@@ -311,112 +326,130 @@
     }
   }
 
-  modeGroup.addEventListener("click", (event) => {
-    const btn = event.target.closest("button[data-mode]");
-    if (!btn) return;
-    mode = btn.dataset.mode;
-    activateByData(modeGroup, "mode", mode);
-  });
+  if (modeGroup) {
+    modeGroup.addEventListener("click", (event) => {
+      const btn = event.target.closest("button[data-mode]");
+      if (!btn) return;
+      mode = btn.dataset.mode;
+      activateByData(modeGroup, "mode", mode);
+    });
+  }
 
-  difficultyGroup.addEventListener("click", (event) => {
-    const btn = event.target.closest("button[data-difficulty]");
-    if (!btn) return;
-    difficulty = btn.dataset.difficulty;
-    activateByData(difficultyGroup, "difficulty", difficulty);
-  });
+  if (difficultyGroup) {
+    difficultyGroup.addEventListener("click", (event) => {
+      const btn = event.target.closest("button[data-difficulty]");
+      if (!btn) return;
+      difficulty = btn.dataset.difficulty;
+      activateByData(difficultyGroup, "difficulty", difficulty);
+    });
+  }
 
-  startBtn.addEventListener("click", async () => {
-    try {
-      showError("");
-      await startStudentQuiz();
-    } catch (err) {
-      showError(err.message || err);
-    }
-  });
-
-  nextBtn.addEventListener("click", () => {
-    if (!queuedNext) return;
-    renderQuestion(queuedNext);
-  });
-
-  pendingSendBtn.addEventListener("click", async () => {
-    try {
-      showError("");
-      await api("/api/access/request", {
-        method: "POST",
-        body: JSON.stringify({
-          subject: pendingSubject.value || "",
-          message: pendingMessage.value || "",
-        }),
-      });
-      await loadPendingState();
-    } catch (err) {
-      showError(err.message || err);
-    }
-  });
-
-  refreshAdminBtn.addEventListener("click", async () => {
-    try {
-      showError("");
-      await loadAdminData();
-    } catch (err) {
-      showError(err.message || err);
-    }
-  });
-
-  generateAllBtn.addEventListener("click", async () => {
-    try {
-      showError("");
-      await api("/api/admin/generate-all", { method: "POST" });
-    } catch (err) {
-      showError(err.message || err);
-    }
-  });
-
-  uploadBtn.addEventListener("click", async () => {
-    try {
-      showError("");
-      uploadStatus.textContent = "";
-      const studentId = uploadStudentSelect.value;
-      const file = uploadFileInput.files && uploadFileInput.files[0];
-      if (!studentId || !file) {
-        throw new Error("Выберите ученика и .ipynb файл.");
+  if (startBtn) {
+    startBtn.addEventListener("click", async () => {
+      try {
+        showError("");
+        await startStudentQuiz();
+      } catch (err) {
+        showError(err.message || err);
       }
-      const form = new FormData();
-      form.append("student_id", studentId);
-      form.append("file", file);
-      const result = await api("/api/admin/material/upload", {
-        method: "POST",
-        body: form,
-      });
-      uploadStatus.textContent = result.status === "duplicate" ? "Дубликат блокнота." : "Блокнот сохранен.";
-    } catch (err) {
-      showError(err.message || err);
-    }
-  });
+    });
+  }
+
+  if (nextBtn) {
+    nextBtn.addEventListener("click", () => {
+      if (!queuedNext) return;
+      renderQuestion(queuedNext);
+    });
+  }
+
+  if (pendingSendBtn) {
+    pendingSendBtn.addEventListener("click", async () => {
+      try {
+        showError("");
+        await api("/api/access/request", {
+          method: "POST",
+          body: JSON.stringify({
+            subject: (pendingSubject && pendingSubject.value) || "",
+            message: (pendingMessage && pendingMessage.value) || "",
+          }),
+        });
+        await loadPendingState();
+      } catch (err) {
+        showError(err.message || err);
+      }
+    });
+  }
+
+  if (refreshAdminBtn) {
+    refreshAdminBtn.addEventListener("click", async () => {
+      try {
+        showError("");
+        await loadAdminData();
+      } catch (err) {
+        showError(err.message || err);
+      }
+    });
+  }
+
+  if (generateAllBtn) {
+    generateAllBtn.addEventListener("click", async () => {
+      try {
+        showError("");
+        await api("/api/admin/generate-all", { method: "POST" });
+      } catch (err) {
+        showError(err.message || err);
+      }
+    });
+  }
+
+  if (uploadBtn) {
+    uploadBtn.addEventListener("click", async () => {
+      try {
+        showError("");
+        if (uploadStatus) uploadStatus.textContent = "";
+        const studentId = uploadStudentSelect ? uploadStudentSelect.value : "";
+        const file = uploadFileInput && uploadFileInput.files && uploadFileInput.files[0];
+        if (!studentId || !file) {
+          throw new Error("Выберите ученика и .ipynb файл.");
+        }
+        const form = new FormData();
+        form.append("student_id", studentId);
+        form.append("file", file);
+        const result = await api("/api/admin/material/upload", {
+          method: "POST",
+          body: form,
+        });
+        if (uploadStatus) {
+          uploadStatus.textContent = result.status === "duplicate" ? "Дубликат блокнота." : "Блокнот сохранен.";
+        }
+      } catch (err) {
+        showError(err.message || err);
+      }
+    });
+  }
 
   async function bootstrap() {
     try {
       showError("");
       const me = await api("/api/me");
-      title.textContent = "Здравствуйте, " + me.full_name;
+      if (title) title.textContent = "Здравствуйте, " + me.full_name;
       if (me.role === "admin") {
-        subtitle.textContent = "Админ-панель в приложении.";
+        if (subtitle) subtitle.textContent = "Админ-панель в приложении. Роль: admin.";
         showRoleView("admin");
         await loadAdminData();
         return;
       }
       if (me.role === "student") {
-        subtitle.textContent = "Обучение полностью в приложении.";
+        if (subtitle) subtitle.textContent = "Обучение полностью в приложении. Роль: student.";
         showRoleView("student");
         return;
       }
-      subtitle.textContent = "Доступ еще не выдан.";
+      if (subtitle) subtitle.textContent = "Доступ еще не выдан. Роль: " + me.role + ".";
       showRoleView("pending");
       await loadPendingState();
     } catch (err) {
       showError(err.message || err);
-      subtitle.textContent = "Ошибка инициализации.";
+      if (subtitle) subtitle.textContent = "Ошибка инициализации.";
     }
   }
 

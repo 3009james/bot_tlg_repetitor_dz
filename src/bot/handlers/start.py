@@ -29,6 +29,13 @@ async def start_handler(message: Message, settings, session_factory) -> None:
             user = await repo.get_user_by_telegram(tg_id)
             if not user:
                 user = await repo.upsert_user(tg_id, full_name, username, UserRole.PENDING)
+        try:
+            photos = await message.bot.get_user_profile_photos(user_id=tg_id, limit=1)
+            if photos.total_count > 0 and photos.photos and photos.photos[0]:
+                user.photo_file_id = photos.photos[0][-1].file_id
+        except Exception:
+            # Если фото не удалось получить, не прерываем flow.
+            pass
 
     if tg_id in settings.admins:
         if settings.webapp_url:
@@ -49,10 +56,11 @@ async def start_handler(message: Message, settings, session_factory) -> None:
         return
 
     if settings.webapp_url:
-        await message.answer(
-            "Откройте приложение и отправьте заявку на доступ.",
-            reply_markup=open_app_kb(settings.webapp_url),
-        )
+        text = f"Здравствуйте, {user.full_name}.\nОткройте приложение и отправьте заявку на доступ."
+        if user.photo_file_id:
+            await message.answer_photo(user.photo_file_id, caption=text, reply_markup=open_app_kb(settings.webapp_url))
+        else:
+            await message.answer(text, reply_markup=open_app_kb(settings.webapp_url))
         return
     await message.answer("Доступ пока не выдан. Отправьте заявку, и администратор добавит вас в систему.", reply_markup=unknown_user_kb())
 

@@ -1,3 +1,11 @@
+from src.db.models.lesson_type import (
+    GenerationMode,
+    LessonType,
+    LessonTypeDailyPack,
+    LessonTypeMaterial,
+    LessonTypeStudent,
+    LessonTypeTopic,
+)
 from src.db.models.access_request import AccessRequest, RequestStatus
 from src.db.models.material import LessonMaterial
 from src.db.models.quiz import AnswerLog, DailyQuestion, DailyQuiz, Difficulty, QuizStatus, StudentProgress
@@ -10,6 +18,12 @@ __all__ = [
     "DailyQuestion",
     "DailyQuiz",
     "Difficulty",
+    "GenerationMode",
+    "LessonType",
+    "LessonTypeDailyPack",
+    "LessonTypeMaterial",
+    "LessonTypeStudent",
+    "LessonTypeTopic",
     "LessonMaterial",
     "QuizStatus",
     "RequestStatus",

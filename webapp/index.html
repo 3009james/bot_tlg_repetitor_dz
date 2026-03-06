@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Neuro Scope Tester</title>
-    <link rel="stylesheet" href="./styles.css?v=20260306-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260306-4" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>
@@ -12,76 +12,134 @@
       <section class="card">
         <p class="kicker">Telegram Mini App</p>
         <h1 id="title">Neuro Scope Tester</h1>
-        <p class="subtitle" id="subtitle">Загрузка профиля...</p>
-        <p id="errorText" class="error hidden"></p>
-
-        <div id="studentView" class="hidden">
-          <div id="setupSection">
-            <div class="group">
-              <label class="group-title">Режим</label>
-              <div class="chips" id="modeGroup">
-                <button class="chip chip-active" data-mode="test">Тестирование</button>
-                <button class="chip" data-mode="manual">Вручную</button>
-              </div>
-            </div>
-            <div class="group">
-              <label class="group-title">Сложность</label>
-              <div class="chips" id="difficultyGroup">
-                <button class="chip chip-active" data-difficulty="easy">Легко</button>
-                <button class="chip" data-difficulty="medium">Средне</button>
-                <button class="chip" data-difficulty="hard">Сложно</button>
-              </div>
-            </div>
-            <button class="primary-btn" id="startBtn">Начать тест</button>
-          </div>
-
-          <div id="quizSection" class="hidden">
-            <div class="quiz-head">
-              <span id="progressText">Задание 1/10</span>
-            </div>
-            <p class="question" id="questionText"></p>
-            <div class="options" id="optionsWrap"></div>
-            <div class="feedback hidden" id="feedbackBox"></div>
-            <button class="secondary-btn hidden" id="nextBtn">Следующее задание</button>
-          </div>
-        </div>
+        <p class="subtitle" id="subtitle">Загрузка...</p>
+        <p class="error hidden" id="errorText"></p>
 
         <div id="pendingView" class="hidden">
-          <p class="panel-label">Заявка на доступ</p>
-          <input id="pendingSubject" class="text-input" placeholder="Предмет (Python, C++, Математика)" />
-          <textarea id="pendingMessage" class="text-area" placeholder="Комментарий о текущем уровне"></textarea>
+          <p class="panel-label">Описание</p>
+          <p class="hint">Бот для персональных ежедневных заданий и тестирования по вашим занятиям.</p>
+          <p class="panel-label">Заявка на участие</p>
+          <input id="pendingSubject" class="text-input" placeholder="Направление (Python / C++ / Математика)" />
+          <textarea id="pendingMessage" class="text-area" placeholder="Коротко о текущем уровне"></textarea>
           <button id="pendingSendBtn" class="primary-btn">Отправить заявку</button>
           <p id="pendingStatus" class="hint"></p>
         </div>
 
+        <div id="studentView" class="hidden">
+          <p id="studentUpdateInfo" class="hint"></p>
+
+          <div id="studentStartStage">
+            <label class="group-title">Вид занятия</label>
+            <select id="studentLessonTypeSelect" class="text-input"></select>
+            <button id="studentBeginBtn" class="primary-btn">Начать</button>
+          </div>
+
+          <div id="studentModeStage" class="hidden">
+            <p class="panel-label">Выберите режим</p>
+            <div class="admin-row">
+              <button id="studentModeTestBtn" class="mini-btn">Тестирование</button>
+              <button id="studentModeManualBtn" class="mini-btn">Вручную</button>
+            </div>
+          </div>
+
+          <div id="studentDifficultyStage" class="hidden">
+            <p class="panel-label">Выберите сложность</p>
+            <div class="admin-row">
+              <button class="mini-btn student-difficulty" data-difficulty="low">Низкий</button>
+              <button class="mini-btn student-difficulty" data-difficulty="medium">Средний</button>
+              <button class="mini-btn student-difficulty" data-difficulty="high">Высокий</button>
+            </div>
+          </div>
+
+          <div id="studentQuizStage" class="hidden">
+            <div class="quiz-head">
+              <span id="studentQuizProgress">Вопрос 1/10</span>
+            </div>
+            <p class="question" id="studentQuizQuestion"></p>
+            <div class="options" id="studentQuizOptions"></div>
+            <div class="feedback hidden" id="studentQuizFeedback"></div>
+            <button class="secondary-btn hidden" id="studentShowSolutionBtn">Показать решение</button>
+            <div class="admin-row">
+              <button class="mini-btn" id="studentPrevQuestionBtn">←</button>
+              <button class="mini-btn" id="studentNextQuestionBtn">→</button>
+              <button class="mini-btn" id="studentRestartBtn">Пройти заново</button>
+            </div>
+            <p class="hint" id="studentResultInfo"></p>
+          </div>
+        </div>
+
         <div id="adminView" class="hidden">
-          <p class="panel-label">Админ-панель</p>
-          <button id="refreshAdminBtn" class="secondary-btn">Обновить данные</button>
-          <button id="generateAllBtn" class="secondary-btn">Сгенерировать задания всем</button>
+          <button id="adminLessonTypesBtn" class="primary-btn">Виды занятий</button>
 
-          <div class="admin-block">
-            <h3>Заявки</h3>
-            <div id="requestsWrap" class="admin-list"></div>
+          <div id="adminRequestsBlock" class="admin-block">
+            <h3>Заявки учеников</h3>
+            <div id="adminRequestsWrap" class="admin-list"></div>
           </div>
 
-          <div class="admin-block">
-            <h3>Загрузка блокнота</h3>
-            <select id="uploadStudentSelect" class="text-input"></select>
-            <input id="uploadFileInput" type="file" accept=".ipynb" class="text-input" />
-            <button id="uploadBtn" class="primary-btn">Загрузить блокнот</button>
-            <p id="uploadStatus" class="hint"></p>
+          <div id="adminLessonTypesList" class="admin-block hidden">
+            <h3>Список видов занятий</h3>
+            <div id="adminLessonTypesWrap" class="admin-list"></div>
           </div>
 
-          <div class="admin-block">
-            <h3>Ученики и темы</h3>
-            <div id="studentsWrap" class="admin-list"></div>
+          <div id="adminLessonTypePanel" class="admin-block hidden">
+            <h3 id="adminLessonTypeTitle">Вид занятия</h3>
+            <button id="adminBackToLessonTypesBtn" class="mini-btn">Назад к видам занятий</button>
+
+            <div class="admin-block">
+              <h3>Загрузка материала</h3>
+              <input id="adminLessonTypeFileInput" type="file" accept=".ipynb" class="text-input" />
+              <button id="adminLessonTypeUploadBtn" class="primary-btn">Загрузить материал</button>
+              <p id="adminLessonTypeUploadStatus" class="hint"></p>
+            </div>
+
+            <div class="admin-block">
+              <h3>Выбрать темы</h3>
+              <p class="hint">Доступные темы:</p>
+              <p id="adminAvailableTopics" class="hint"></p>
+              <textarea id="adminSelectedTopicsInput" class="text-area" placeholder="Темы через запятую"></textarea>
+              <button id="adminSaveTopicsBtn" class="mini-btn">Сохранить темы</button>
+            </div>
+
+            <div class="admin-block">
+              <h3>Закрепить ученика за видом занятия</h3>
+              <div id="adminStudentsAssignWrap" class="admin-list"></div>
+              <button id="adminSaveStudentsAssignBtn" class="mini-btn">Сохранить закрепление</button>
+            </div>
+
+            <div class="admin-block">
+              <h3>Генерация заданий</h3>
+              <button id="adminGenerateDayBtn" class="primary-btn">Сгенерировать задания на сутки</button>
+              <p id="adminGenerateDayStatus" class="hint"></p>
+            </div>
+
+            <div class="admin-block">
+              <h3>Посмотреть задания на сутки</h3>
+              <div class="admin-row">
+                <button class="mini-btn admin-pack-diff" data-difficulty="low">Низкий</button>
+                <button class="mini-btn admin-pack-diff" data-difficulty="medium">Средний</button>
+                <button class="mini-btn admin-pack-diff" data-difficulty="high">Высокий</button>
+              </div>
+              <div id="adminPackViewWrap" class="admin-list"></div>
+            </div>
+
+            <div class="admin-block">
+              <h3>Режим генерации</h3>
+              <select id="adminGenerationMode" class="text-input">
+                <option value="manual">Вручную</option>
+                <option value="auto">Автоматический</option>
+              </select>
+              <div class="admin-row">
+                <input id="adminGenerateHour" type="number" min="0" max="23" class="text-input" placeholder="Часы" />
+                <input id="adminGenerateMinute" type="number" min="0" max="59" class="text-input" placeholder="Минуты" />
+              </div>
+              <button id="adminSaveScheduleBtn" class="mini-btn">Сохранить режим</button>
+            </div>
           </div>
         </div>
 
         <p class="hint">Интерфейс: темно-синий Mini App.</p>
       </section>
     </main>
-
-    <script src="./app.js?v=20260306-3"></script>
+    <script src="./app.js?v=20260306-4"></script>
   </body>
 </html>

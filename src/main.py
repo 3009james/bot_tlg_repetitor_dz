@@ -12,7 +12,9 @@ from src.bot.services.routerai_client import RouterAIClient
 from src.bot.services.scheduler import build_scheduler
 from src.core.config import get_settings
 from src.core.logging import setup_logging
+from src.db.repo import BotRepo
 from src.db.session import create_db, create_engine_and_factory
+from src.db.session import session_scope
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +25,9 @@ async def main() -> None:
 
     engine, session_factory = create_engine_and_factory(settings)
     await create_db(engine)
+    async with session_scope(session_factory) as session:
+        repo = BotRepo(session)
+        await repo.ensure_default_lesson_types()
 
     bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode="HTML"))
     dp = build_dispatcher()

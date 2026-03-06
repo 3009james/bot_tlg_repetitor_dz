@@ -218,6 +218,10 @@ h1 {
   background: rgba(8, 26, 63, 0.86);
 }
 
+.admin-item input[type="checkbox"] {
+  margin-right: 8px;
+}
+
 .admin-item-title {
   margin: 0 0 4px;
   font-weight: 600;

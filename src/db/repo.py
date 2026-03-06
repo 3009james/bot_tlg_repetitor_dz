@@ -12,6 +12,12 @@ from src.db.models import (
     DailyQuestion,
     DailyQuiz,
     Difficulty,
+    GenerationMode,
+    LessonType,
+    LessonTypeDailyPack,
+    LessonTypeMaterial,
+    LessonTypeStudent,
+    LessonTypeTopic,
     LessonMaterial,
     RequestStatus,
     StudentTopic,
@@ -58,6 +64,84 @@ class BotRepo:
     async def list_students(self) -> list[User]:
         result = await self.session.scalars(select(User).where(User.role == UserRole.STUDENT).order_by(User.full_name))
         return list(result)
+
+    async def ensure_default_lesson_types(self) -> None:
+        defaults = [
+            ("C++", "cpp"),
+            ("Python", "python"),
+            ("Математика", "math"),
+        ]
+        for name, slug in defaults:
+            row = await self.session.scalar(select(LessonType).where(LessonType.slug == slug))
+            if row:
+                continue
+            self.session.add(
+                LessonType(
+                    name=name,
+                    slug=slug,
+                    generation_mode=GenerationMode.MANUAL,
+                    generate_hour=0,
+                    generate_minute=0,
+                )
+            )
+        await self.session.flush()
+
+    async def list_lesson_types(self) -> list[LessonType]:
+        result = await self.session.scalars(select(LessonType).order_by(LessonType.name.asc()))
+        return list(result)
+
+    async def get_lesson_type(self, lesson_type_id: int) -> LessonType | None:
+        return await self.session.scalar(select(LessonType).where(LessonType.id == lesson_type_id))
+
+    async def set_lesson_type_schedule(
+        self, lesson_type_id: int, mode: GenerationMode, generate_hour: int, generate_minute: int
+    ) -> LessonType | None:
+        lesson_type = await self.get_lesson_type(lesson_type_id)
+        if not lesson_type:
+            return None
+        lesson_type.generation_mode = mode
+        lesson_type.generate_hour = max(0, min(23, int(generate_hour)))
+        lesson_type.generate_minute = max(0, min(59, int(generate_minute)))
+        await self.session.flush()
+        return lesson_type
+
+    async def list_auto_lesson_types_for_time(self, hour: int, minute: int) -> list[LessonType]:
+        result = await self.session.scalars(
+            select(LessonType).where(
+                and_(
+                    LessonType.generation_mode == GenerationMode.AUTO,
+                    LessonType.generate_hour == int(hour),
+                    LessonType.generate_minute == int(minute),
+                )
+            )
+        )
+        return list(result)
+
+    async def list_students_by_lesson_type(self, lesson_type_id: int) -> list[User]:
+        result = await self.session.scalars(
+            select(User)
+            .join(LessonTypeStudent, LessonTypeStudent.student_id == User.id)
+            .where(and_(LessonTypeStudent.lesson_type_id == lesson_type_id, User.role == UserRole.STUDENT))
+            .order_by(User.full_name.asc())
+        )
+        return list(result)
+
+    async def get_student_lesson_types(self, student_id: int) -> list[LessonType]:
+        result = await self.session.scalars(
+            select(LessonType)
+            .join(LessonTypeStudent, LessonTypeStudent.lesson_type_id == LessonType.id)
+            .where(LessonTypeStudent.student_id == student_id)
+            .order_by(LessonType.name.asc())
+        )
+        return list(result)
+
+    async def replace_lesson_type_students(self, lesson_type_id: int, student_ids: list[int]) -> list[int]:
+        cleaned = sorted({int(x) for x in student_ids if int(x) > 0})
+        await self.session.execute(delete(LessonTypeStudent).where(LessonTypeStudent.lesson_type_id == lesson_type_id))
+        for student_id in cleaned:
+            self.session.add(LessonTypeStudent(lesson_type_id=lesson_type_id, student_id=student_id))
+        await self.session.flush()
+        return cleaned
 
     async def create_access_request(
         self, telegram_id: int, full_name: str, username: str | None, subject: str | None, message: str | None
@@ -126,6 +210,123 @@ class BotRepo:
         self.session.add(material)
         await self.session.flush()
         return material
+
+    async def create_lesson_type_material(
+        self,
+        lesson_type_id: int,
+        title: str,
+        source_filename: str,
+        content_hash: str,
+        compact_context: str,
+        tokens_estimate: int,
+    ) -> LessonTypeMaterial | None:
+        existing = await self.session.scalar(
+            select(LessonTypeMaterial).where(
+                and_(LessonTypeMaterial.lesson_type_id == lesson_type_id, LessonTypeMaterial.content_hash == content_hash)
+            )
+        )
+        if existing:
+            return None
+        material = LessonTypeMaterial(
+            lesson_type_id=lesson_type_id,
+            title=title,
+            source_filename=source_filename,
+            content_hash=content_hash,
+            compact_context=compact_context,
+            tokens_estimate=tokens_estimate,
+        )
+        self.session.add(material)
+        await self.session.flush()
+        return material
+
+    async def get_lesson_type_materials(self, lesson_type_id: int, limit: int = 30) -> list[LessonTypeMaterial]:
+        result = await self.session.scalars(
+            select(LessonTypeMaterial)
+            .where(LessonTypeMaterial.lesson_type_id == lesson_type_id)
+            .order_by(LessonTypeMaterial.created_at.desc())
+            .limit(limit)
+        )
+        return list(result)
+
+    async def get_lesson_type_materials_by_topics(
+        self, lesson_type_id: int, topics: list[str], limit: int = 30
+    ) -> list[LessonTypeMaterial]:
+        cleaned = [t.strip() for t in topics if t and t.strip()]
+        if not cleaned:
+            return await self.get_lesson_type_materials(lesson_type_id, limit=limit)
+        result = await self.session.scalars(
+            select(LessonTypeMaterial)
+            .where(and_(LessonTypeMaterial.lesson_type_id == lesson_type_id, LessonTypeMaterial.title.in_(cleaned)))
+            .order_by(LessonTypeMaterial.created_at.desc())
+            .limit(limit)
+        )
+        return list(result)
+
+    async def list_lesson_type_material_topics(self, lesson_type_id: int, limit: int = 200) -> list[str]:
+        result = await self.session.scalars(
+            select(LessonTypeMaterial.title)
+            .where(LessonTypeMaterial.lesson_type_id == lesson_type_id)
+            .order_by(LessonTypeMaterial.created_at.desc())
+            .limit(limit)
+        )
+        topics: list[str] = []
+        seen: set[str] = set()
+        for raw in result:
+            title = (raw or "").strip()
+            if not title or title in seen:
+                continue
+            topics.append(title)
+            seen.add(title)
+        return topics
+
+    async def get_lesson_type_topics(self, lesson_type_id: int) -> list[str]:
+        result = await self.session.scalars(
+            select(LessonTypeTopic.topic)
+            .where(LessonTypeTopic.lesson_type_id == lesson_type_id)
+            .order_by(LessonTypeTopic.topic.asc())
+        )
+        return [x for x in result]
+
+    async def replace_lesson_type_topics(self, lesson_type_id: int, topics: list[str]) -> list[str]:
+        cleaned = sorted({t.strip() for t in topics if t and t.strip()})
+        await self.session.execute(delete(LessonTypeTopic).where(LessonTypeTopic.lesson_type_id == lesson_type_id))
+        for topic in cleaned:
+            self.session.add(LessonTypeTopic(lesson_type_id=lesson_type_id, topic=topic))
+        await self.session.flush()
+        return cleaned
+
+    async def get_lesson_type_daily_pack(
+        self, lesson_type_id: int, quiz_date: date, difficulty: Difficulty
+    ) -> LessonTypeDailyPack | None:
+        return await self.session.scalar(
+            select(LessonTypeDailyPack).where(
+                and_(
+                    LessonTypeDailyPack.lesson_type_id == lesson_type_id,
+                    LessonTypeDailyPack.quiz_date == quiz_date,
+                    LessonTypeDailyPack.difficulty == difficulty,
+                )
+            )
+        )
+
+    async def upsert_lesson_type_daily_pack(
+        self, lesson_type_id: int, quiz_date: date, difficulty: Difficulty, questions: list[dict]
+    ) -> LessonTypeDailyPack:
+        pack = await self.get_lesson_type_daily_pack(lesson_type_id, quiz_date, difficulty)
+        payload = json.dumps(questions, ensure_ascii=False)
+        if not pack:
+            pack = LessonTypeDailyPack(
+                lesson_type_id=lesson_type_id,
+                quiz_date=quiz_date,
+                difficulty=difficulty,
+                questions_json=payload,
+            )
+            self.session.add(pack)
+            await self.session.flush()
+            return pack
+        pack.questions_json = payload
+        pack.generated_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        return pack
 
     async def get_student_materials(self, student_id: int, limit: int = 30) -> list[LessonMaterial]:
         result = await self.session.scalars(
@@ -221,6 +422,12 @@ class BotRepo:
         count = await self.session.scalar(stmt)
         return int(count or 0)
 
+    async def list_quiz_questions(self, quiz_id: int) -> list[DailyQuestion]:
+        result = await self.session.scalars(
+            select(DailyQuestion).where(DailyQuestion.quiz_id == quiz_id).order_by(DailyQuestion.position.asc())
+        )
+        return list(result)
+
     async def get_or_create_progress(self, quiz_id: int, student_id: int) -> StudentProgress:
         progress = await self.session.scalar(
             select(StudentProgress).where(and_(StudentProgress.quiz_id == quiz_id, StudentProgress.student_id == student_id))
@@ -257,3 +464,11 @@ class BotRepo:
         self.session.add(row)
         await self.session.flush()
         return row
+
+    async def list_answer_logs(self, quiz_id: int, student_id: int) -> list[AnswerLog]:
+        result = await self.session.scalars(
+            select(AnswerLog)
+            .where(and_(AnswerLog.quiz_id == quiz_id, AnswerLog.student_id == student_id))
+            .order_by(AnswerLog.answered_at.desc(), AnswerLog.id.desc())
+        )
+        return list(result)

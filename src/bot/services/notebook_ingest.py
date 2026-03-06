@@ -16,7 +16,10 @@ class NotebookDigest:
 
 
 def extract_text_from_ipynb(raw_bytes: bytes) -> tuple[str, str]:
-    payload = json.loads(raw_bytes.decode("utf-8"))
+    try:
+        payload = json.loads(raw_bytes.decode("utf-8-sig"))
+    except Exception as exc:
+        raise ValueError("Invalid .ipynb JSON content") from exc
     cells = payload.get("cells", [])
     chunks: list[str] = []
     for cell in cells:

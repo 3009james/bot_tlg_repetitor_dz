@@ -23,8 +23,12 @@ class RouterAIClient:
             "Формат: ключевые темы, важные формулы/правила, типичные ошибки, 10-20 тезисов. "
             "Пиши по-русски, без воды."
         )
-        content = await self._chat_json(prompt, raw_text, expect_json=False)
-        return content.strip() or self._cheap_summary(raw_text)
+        try:
+            content = await self._chat_json(prompt, raw_text, expect_json=False)
+            return content.strip() or self._cheap_summary(raw_text)
+        except Exception:
+            log.exception("RouterAI summarize failed, using cheap summary fallback")
+            return self._cheap_summary(raw_text)
 
     async def generate_questions(self, compact_context: str, difficulty: str, count: int = 10) -> list[dict]:
         if not self.api_key:
@@ -36,7 +40,11 @@ class RouterAIClient:
             '[{"question":"...", "options":["...","...","...","..."], "correct_index":0, "explanation":"..."}]. '
             "Без markdown."
         )
-        raw = await self._chat_json(prompt, compact_context, expect_json=True)
+        try:
+            raw = await self._chat_json(prompt, compact_context, expect_json=True)
+        except Exception:
+            log.exception("RouterAI question generation failed, using fallback questions")
+            return self._fallback_questions(compact_context, difficulty, count)
         try:
             data = json.loads(raw)
             valid = []

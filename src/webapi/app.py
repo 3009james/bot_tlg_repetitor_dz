@@ -395,7 +395,10 @@ async def admin_upload_lesson_type_material(
     if not file.filename or not file.filename.lower().endswith(".ipynb"):
         raise HTTPException(status_code=400, detail="Only .ipynb is supported")
     raw = await file.read()
-    digest = await build_notebook_digest(raw, app.state.llm_client)
+    try:
+        digest = await build_notebook_digest(raw, app.state.llm_client)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     async with session_scope(app.state.session_factory) as session:
         repo = BotRepo(session)
         lesson_type = await repo.get_lesson_type(lesson_type_id)

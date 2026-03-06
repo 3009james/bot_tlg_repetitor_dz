@@ -110,9 +110,20 @@
       headers,
       body,
     });
-    const data = await response.json().catch(() => ({}));
+    let data = {};
+    let rawText = "";
+    try {
+      data = await response.json();
+    } catch (_err) {
+      try {
+        rawText = await response.text();
+      } catch (_err2) {
+        rawText = "";
+      }
+    }
     if (!response.ok) {
-      throw new Error(data.detail || "Ошибка API");
+      const fallback = rawText ? rawText.slice(0, 180) : "Ошибка API";
+      throw new Error(data.detail || "HTTP " + response.status + ": " + fallback);
     }
     return data;
   }

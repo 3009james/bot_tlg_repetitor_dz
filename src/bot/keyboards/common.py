@@ -1,6 +1,13 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
 
+def open_app_kb(webapp_url: str) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="Открыть приложение", web_app=WebAppInfo(url=webapp_url))]],
+        resize_keyboard=True,
+    )
+
+
 def unknown_user_kb() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="Отправить заявку")]],
@@ -16,12 +23,7 @@ def student_home_kb() -> ReplyKeyboardMarkup:
 
 
 def student_webapp_kb(webapp_url: str) -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Открыть приложение", web_app=WebAppInfo(url=webapp_url))],
-        ],
-        resize_keyboard=True,
-    )
+    return open_app_kb(webapp_url)
 
 
 def admin_home_kb() -> ReplyKeyboardMarkup:

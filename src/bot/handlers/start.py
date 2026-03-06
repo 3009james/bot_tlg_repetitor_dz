@@ -5,7 +5,7 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
-from src.bot.keyboards.common import admin_home_kb, student_home_kb, student_webapp_kb, unknown_user_kb
+from src.bot.keyboards.common import admin_home_kb, open_app_kb, student_home_kb, student_webapp_kb, unknown_user_kb
 from src.bot.states import RequestAccessState
 from src.db.models import UserRole
 from src.db.repo import BotRepo
@@ -31,11 +31,14 @@ async def start_handler(message: Message, settings, session_factory) -> None:
                 user = await repo.upsert_user(tg_id, full_name, username, UserRole.PENDING)
 
     if tg_id in settings.admins:
-        await message.answer("Админ-панель активна.", reply_markup=admin_home_kb())
+        if settings.webapp_url:
+            await message.answer("Админ-панель доступна в приложении.", reply_markup=open_app_kb(settings.webapp_url))
+        else:
+            await message.answer("Админ-панель активна.", reply_markup=admin_home_kb())
         return
 
     if user.role == UserRole.STUDENT:
-        greeting = f"Здравствуйте, {user.full_name}.\nОткройте приложение для запуска обучения."
+        greeting = f"Здравствуйте, {user.full_name}.\nОткройте приложение."
         reply_markup = student_home_kb()
         if settings.webapp_url:
             reply_markup = student_webapp_kb(settings.webapp_url)
@@ -45,10 +48,13 @@ async def start_handler(message: Message, settings, session_factory) -> None:
             await message.answer(greeting, reply_markup=reply_markup)
         return
 
-    await message.answer(
-        "Доступ пока не выдан. Отправьте заявку, и администратор добавит вас в систему.",
-        reply_markup=unknown_user_kb(),
-    )
+    if settings.webapp_url:
+        await message.answer(
+            "Откройте приложение и отправьте заявку на доступ.",
+            reply_markup=open_app_kb(settings.webapp_url),
+        )
+        return
+    await message.answer("Доступ пока не выдан. Отправьте заявку, и администратор добавит вас в систему.", reply_markup=unknown_user_kb())
 
 
 @router.message(F.text == "Отправить заявку")

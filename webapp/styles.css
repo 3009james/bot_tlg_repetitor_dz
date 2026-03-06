@@ -119,6 +119,12 @@ h1 {
   color: var(--muted);
 }
 
+.error {
+  margin: 8px 0 12px;
+  color: #ff9f9f;
+  font-size: 13px;
+}
+
 .hidden {
   display: none;
 }
@@ -165,4 +171,69 @@ h1 {
 .feedback-bad {
   background: rgba(141, 55, 55, 0.28);
   border: 1px solid rgba(230, 122, 122, 0.35);
+}
+
+.panel-label {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #b7c9ee;
+}
+
+.text-input,
+.text-area {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(10, 32, 78, 0.88);
+  color: var(--text);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.text-area {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.admin-block {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.admin-block h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.admin-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(8, 26, 63, 0.86);
+}
+
+.admin-item-title {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.admin-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mini-btn {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(15, 42, 101, 0.9);
+  color: var(--text);
+  padding: 8px 10px;
+  cursor: pointer;
 }

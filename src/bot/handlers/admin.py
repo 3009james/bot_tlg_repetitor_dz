@@ -11,6 +11,7 @@ from aiogram.types import CallbackQuery, Message
 
 from src.bot.keyboards.common import (
     admin_home_kb,
+    open_app_kb,
     request_actions_kb,
     student_select_kb,
     topic_manage_kb,
@@ -58,6 +59,9 @@ async def _build_topic_editor(session_factory, student_id: int) -> tuple[str, ob
 async def admin_cmd(message: Message, settings) -> None:
     if not _is_admin(message.from_user.id, settings):
         await message.answer("Нет доступа.")
+        return
+    if settings.webapp_url:
+        await message.answer("Админ-панель работает в приложении.", reply_markup=open_app_kb(settings.webapp_url))
         return
     await message.answer("Админ-панель.", reply_markup=admin_home_kb())
 

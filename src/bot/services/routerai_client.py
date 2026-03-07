@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import random
+import re
 
 import httpx
 
@@ -161,8 +162,17 @@ class RouterAIClient:
         topics: list[str] = []
         seen: set[str] = set()
         for raw in topics_raw:
-            topic = str(raw or "").strip().strip("-•*0123456789. ")
+            topic = str(raw or "").strip()
+            topic = topic.replace("`", " ")
+            topic = topic.lstrip("#> ").strip()
+            topic = re.sub(r"^\d+(?:[.)]\d+)*[.)]?\s*", "", topic)
+            topic = re.sub(r"\s+", " ", topic).strip().strip("-•*")
             if not topic:
+                continue
+            lower = topic.lower()
+            if lower in {"markdown", "md", "json", "yaml", "code", "text", "текст"}:
+                continue
+            if "```" in topic:
                 continue
             if len(topic) > 120:
                 topic = topic[:120].rstrip()
@@ -183,6 +193,11 @@ class RouterAIClient:
             line = line.strip("-•* \t")
             if not line:
                 continue
+            if line.startswith("```"):
+                continue
+            if line.lower() in {"markdown", "md"}:
+                continue
+            line = line.lstrip("#> ").strip()
             # Grab likely topic heading before separators if present.
             for sep in (":", "-", "—"):
                 if sep in line:

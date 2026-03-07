@@ -32,6 +32,25 @@ class BotRepo:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    @staticmethod
+    def _clean_topic(raw: str | None) -> str:
+        topic = (raw or "").replace("`", " ").strip()
+        topic = topic.lstrip("#> ").strip().strip("-•*")
+        while "  " in topic:
+            topic = topic.replace("  ", " ")
+        return topic[:255]
+
+    @staticmethod
+    def _is_noise_topic(topic: str) -> bool:
+        low = topic.lower().strip()
+        if not low:
+            return True
+        if low in {"markdown", "md", "json", "yaml", "code", "text", "текст"}:
+            return True
+        if "```" in topic:
+            return True
+        return False
+
     async def upsert_user(self, telegram_id: int, full_name: str, username: str | None, role: UserRole) -> User:
         stmt = select(User).where(User.telegram_id == telegram_id)
         user = await self.session.scalar(stmt)
@@ -246,11 +265,14 @@ class BotRepo:
         cleaned = []
         seen: set[str] = set()
         for raw in topics:
-            topic = (raw or "").strip()
-            if not topic or topic in seen:
+            topic = self._clean_topic(raw)
+            if self._is_noise_topic(topic):
                 continue
-            seen.add(topic)
-            cleaned.append(topic[:255])
+            key = topic.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(topic)
         await self.session.execute(delete(LessonTypeMaterialTopic).where(LessonTypeMaterialTopic.material_id == material_id))
         for topic in cleaned:
             self.session.add(
@@ -310,11 +332,14 @@ class BotRepo:
         topics: list[str] = []
         seen: set[str] = set()
         for raw in result:
-            title = (raw or "").strip()
-            if not title or title in seen:
+            title = self._clean_topic(raw)
+            if self._is_noise_topic(title):
+                continue
+            key = title.lower()
+            if key in seen:
                 continue
             topics.append(title)
-            seen.add(title)
+            seen.add(key)
         if topics:
             return topics
         # Backward-compatible fallback for old materials where topic extraction was not stored.
@@ -325,11 +350,14 @@ class BotRepo:
             .limit(limit)
         )
         for raw in legacy:
-            title = (raw or "").strip()
-            if not title or title in seen:
+            title = self._clean_topic(raw)
+            if self._is_noise_topic(title):
+                continue
+            key = title.lower()
+            if key in seen:
                 continue
             topics.append(title)
-            seen.add(title)
+            seen.add(key)
         return topics
 
     async def get_lesson_type_topics(self, lesson_type_id: int) -> list[str]:
@@ -338,10 +366,27 @@ class BotRepo:
             .where(LessonTypeTopic.lesson_type_id == lesson_type_id)
             .order_by(LessonTypeTopic.topic.asc())
         )
-        return [x for x in result]
+        topics: list[str] = []
+        seen: set[str] = set()
+        for raw in result:
+            topic = self._clean_topic(raw)
+            if self._is_noise_topic(topic):
+                continue
+            key = topic.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            topics.append(topic)
+        return topics
 
     async def replace_lesson_type_topics(self, lesson_type_id: int, topics: list[str]) -> list[str]:
-        cleaned = sorted({t.strip() for t in topics if t and t.strip()})
+        cleaned_set = set()
+        for raw in topics:
+            topic = self._clean_topic(raw)
+            if self._is_noise_topic(topic):
+                continue
+            cleaned_set.add(topic)
+        cleaned = sorted(cleaned_set)
         await self.session.execute(delete(LessonTypeTopic).where(LessonTypeTopic.lesson_type_id == lesson_type_id))
         for topic in cleaned:
             self.session.add(LessonTypeTopic(lesson_type_id=lesson_type_id, topic=topic))

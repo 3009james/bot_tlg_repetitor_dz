@@ -401,6 +401,7 @@ async def admin_upload_lesson_type_material(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     extracted_topics = await app.state.llm_client.extract_topics(digest.compact_context, max_topics=24)
+    response_topics: list[str] = []
     async with session_scope(app.state.session_factory) as session:
         repo = BotRepo(session)
         lesson_type = await repo.get_lesson_type(lesson_type_id)
@@ -415,7 +416,7 @@ async def admin_upload_lesson_type_material(
             tokens_estimate=digest.tokens_estimate,
         )
         if created:
-            await repo.replace_lesson_type_material_topics(
+            response_topics = await repo.replace_lesson_type_material_topics(
                 lesson_type_id=lesson_type_id,
                 material_id=created.id,
                 topics=extracted_topics,
@@ -428,7 +429,7 @@ async def admin_upload_lesson_type_material(
     return {
         "status": "created" if created else "duplicate",
         "title": digest.title,
-        "topics": extracted_topics,
+        "topics": response_topics,
     }
 
 

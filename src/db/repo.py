@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timezone
 
-from sqlalchemy import and_, delete, func, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import (
@@ -16,6 +16,7 @@ from src.db.models import (
     LessonType,
     LessonTypeDailyPack,
     LessonTypeMaterial,
+    LessonTypeMaterialTopic,
     LessonTypeStudent,
     LessonTypeTopic,
     LessonMaterial,
@@ -239,6 +240,29 @@ class BotRepo:
         await self.session.flush()
         return material
 
+    async def replace_lesson_type_material_topics(
+        self, lesson_type_id: int, material_id: int, topics: list[str]
+    ) -> list[str]:
+        cleaned = []
+        seen: set[str] = set()
+        for raw in topics:
+            topic = (raw or "").strip()
+            if not topic or topic in seen:
+                continue
+            seen.add(topic)
+            cleaned.append(topic[:255])
+        await self.session.execute(delete(LessonTypeMaterialTopic).where(LessonTypeMaterialTopic.material_id == material_id))
+        for topic in cleaned:
+            self.session.add(
+                LessonTypeMaterialTopic(
+                    lesson_type_id=lesson_type_id,
+                    material_id=material_id,
+                    topic=topic,
+                )
+            )
+        await self.session.flush()
+        return cleaned
+
     async def get_lesson_type_materials(self, lesson_type_id: int, limit: int = 30) -> list[LessonTypeMaterial]:
         result = await self.session.scalars(
             select(LessonTypeMaterial)
@@ -256,7 +280,21 @@ class BotRepo:
             return await self.get_lesson_type_materials(lesson_type_id, limit=limit)
         result = await self.session.scalars(
             select(LessonTypeMaterial)
-            .where(and_(LessonTypeMaterial.lesson_type_id == lesson_type_id, LessonTypeMaterial.title.in_(cleaned)))
+            .join(
+                LessonTypeMaterialTopic,
+                LessonTypeMaterialTopic.material_id == LessonTypeMaterial.id,
+                isouter=True,
+            )
+            .where(
+                and_(
+                    LessonTypeMaterial.lesson_type_id == lesson_type_id,
+                    or_(
+                        LessonTypeMaterialTopic.topic.in_(cleaned),
+                        LessonTypeMaterial.title.in_(cleaned),
+                    ),
+                )
+            )
+            .distinct()
             .order_by(LessonTypeMaterial.created_at.desc())
             .limit(limit)
         )
@@ -264,14 +302,29 @@ class BotRepo:
 
     async def list_lesson_type_material_topics(self, lesson_type_id: int, limit: int = 200) -> list[str]:
         result = await self.session.scalars(
-            select(LessonTypeMaterial.title)
-            .where(LessonTypeMaterial.lesson_type_id == lesson_type_id)
-            .order_by(LessonTypeMaterial.created_at.desc())
+            select(LessonTypeMaterialTopic.topic)
+            .where(LessonTypeMaterialTopic.lesson_type_id == lesson_type_id)
+            .order_by(LessonTypeMaterialTopic.topic.asc())
             .limit(limit)
         )
         topics: list[str] = []
         seen: set[str] = set()
         for raw in result:
+            title = (raw or "").strip()
+            if not title or title in seen:
+                continue
+            topics.append(title)
+            seen.add(title)
+        if topics:
+            return topics
+        # Backward-compatible fallback for old materials where topic extraction was not stored.
+        legacy = await self.session.scalars(
+            select(LessonTypeMaterial.title)
+            .where(LessonTypeMaterial.lesson_type_id == lesson_type_id)
+            .order_by(LessonTypeMaterial.created_at.desc())
+            .limit(limit)
+        )
+        for raw in legacy:
             title = (raw or "").strip()
             if not title or title in seen:
                 continue

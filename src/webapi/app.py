@@ -400,6 +400,7 @@ async def admin_upload_lesson_type_material(
         digest = await build_material_digest(file.filename, raw, app.state.llm_client)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    extracted_topics = await app.state.llm_client.extract_topics(digest.compact_context, max_topics=24)
     async with session_scope(app.state.session_factory) as session:
         repo = BotRepo(session)
         lesson_type = await repo.get_lesson_type(lesson_type_id)
@@ -413,12 +414,22 @@ async def admin_upload_lesson_type_material(
             compact_context=digest.compact_context,
             tokens_estimate=digest.tokens_estimate,
         )
-        # Автоматически обновляем список доступных тем на основе материалов, если тем еще нет
+        if created:
+            await repo.replace_lesson_type_material_topics(
+                lesson_type_id=lesson_type_id,
+                material_id=created.id,
+                topics=extracted_topics,
+            )
+        # Автоматически обновляем выбранные темы только при первом заполнении.
         current_topics = await repo.get_lesson_type_topics(lesson_type_id)
-        if not current_topics:
-            available = await repo.list_lesson_type_material_topics(lesson_type_id)
+        available = await repo.list_lesson_type_material_topics(lesson_type_id)
+        if not current_topics and available:
             await repo.replace_lesson_type_topics(lesson_type_id, available)
-    return {"status": "created" if created else "duplicate", "title": digest.title}
+    return {
+        "status": "created" if created else "duplicate",
+        "title": digest.title,
+        "topics": extracted_topics,
+    }
 
 
 @app.post("/api/admin/lesson-types/{lesson_type_id}/topics")

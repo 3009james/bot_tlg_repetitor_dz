@@ -43,6 +43,16 @@ class LessonTypeMaterial(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class LessonTypeMaterialTopic(Base):
+    __table_args__ = (UniqueConstraint("material_id", "topic", name="uq_lesson_type_material_topic"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    lesson_type_id: Mapped[int] = mapped_column(ForeignKey("lessontype.id", ondelete="CASCADE"), index=True)
+    material_id: Mapped[int] = mapped_column(ForeignKey("lessontypematerial.id", ondelete="CASCADE"), index=True)
+    topic: Mapped[str] = mapped_column(String(255), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class LessonTypeTopic(Base):
     __table_args__ = (UniqueConstraint("lesson_type_id", "topic", name="uq_lesson_type_topic"),)
 

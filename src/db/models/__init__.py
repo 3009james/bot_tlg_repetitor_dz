@@ -3,6 +3,7 @@ from src.db.models.lesson_type import (
     LessonType,
     LessonTypeDailyPack,
     LessonTypeMaterial,
+    LessonTypeMaterialTopic,
     LessonTypeStudent,
     LessonTypeTopic,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "LessonType",
     "LessonTypeDailyPack",
     "LessonTypeMaterial",
+    "LessonTypeMaterialTopic",
     "LessonTypeStudent",
     "LessonTypeTopic",
     "LessonMaterial",

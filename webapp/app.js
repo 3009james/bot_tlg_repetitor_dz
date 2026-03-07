@@ -336,7 +336,10 @@
       method: "POST",
       body: form,
     });
-    adminLessonTypeUploadStatus.textContent = res.status === "duplicate" ? "Дубликат файла." : "Материал загружен.";
+    const topics = Array.isArray(res.topics) ? res.topics : [];
+    const topicsText = topics.length ? " Темы: " + topics.join(", ") : "";
+    adminLessonTypeUploadStatus.textContent =
+      (res.status === "duplicate" ? "Дубликат файла." : "Материал загружен и обработан LLM.") + topicsText;
     await loadLessonTypePanel(state.selectedLessonTypeId);
   }
 

@@ -71,6 +71,34 @@ class RouterAIClient:
             log.exception("RouterAI returned invalid JSON")
         return self._fallback_questions(compact_context, difficulty, count)
 
+    async def extract_topics(self, compact_context: str, max_topics: int = 20) -> list[str]:
+        if not compact_context.strip():
+            return []
+        if not self.api_key:
+            return self._fallback_topics(compact_context, max_topics)
+        prompt = (
+            "Выдели ключевые темы урока.\n"
+            f"Верни до {max_topics} тем.\n"
+            'Ответ строго JSON-объектом: {"topics":["..."]}.\n'
+            "Каждая тема: короткая фраза 2-7 слов, без нумерации и без пояснений."
+        )
+        try:
+            raw = await self._chat_json(prompt, compact_context, expect_json=True)
+            parsed = json.loads(raw)
+            topics_raw = []
+            if isinstance(parsed, dict):
+                topics_raw = parsed.get("topics", [])
+            elif isinstance(parsed, list):
+                topics_raw = parsed
+            if not isinstance(topics_raw, list):
+                return self._fallback_topics(compact_context, max_topics)
+            cleaned = self._normalize_topics(topics_raw, max_topics)
+            if cleaned:
+                return cleaned
+        except Exception:
+            log.exception("RouterAI topic extraction failed, using fallback topics")
+        return self._fallback_topics(compact_context, max_topics)
+
     async def _chat_json(self, system_prompt: str, user_prompt: str, expect_json: bool) -> str:
         url = f"{self.base_url}/chat/completions"
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
@@ -127,3 +155,44 @@ class RouterAIClient:
                 }
             )
         return questions
+
+    @staticmethod
+    def _normalize_topics(topics_raw: list, max_topics: int) -> list[str]:
+        topics: list[str] = []
+        seen: set[str] = set()
+        for raw in topics_raw:
+            topic = str(raw or "").strip().strip("-•*0123456789. ")
+            if not topic:
+                continue
+            if len(topic) > 120:
+                topic = topic[:120].rstrip()
+            lower = topic.lower()
+            if lower in seen:
+                continue
+            seen.add(lower)
+            topics.append(topic)
+            if len(topics) >= max_topics:
+                break
+        return topics
+
+    @classmethod
+    def _fallback_topics(cls, compact_context: str, max_topics: int) -> list[str]:
+        lines = [x.strip() for x in compact_context.splitlines() if x.strip()]
+        candidates = []
+        for line in lines:
+            line = line.strip("-•* \t")
+            if not line:
+                continue
+            # Grab likely topic heading before separators if present.
+            for sep in (":", "-", "—"):
+                if sep in line:
+                    head = line.split(sep, 1)[0].strip()
+                    if 3 <= len(head) <= 90:
+                        line = head
+                        break
+            if 3 <= len(line) <= 90:
+                candidates.append(line)
+            if len(candidates) >= max_topics * 3:
+                break
+        cleaned = cls._normalize_topics(candidates, max_topics)
+        return cleaned[:max_topics]

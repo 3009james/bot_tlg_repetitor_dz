@@ -449,9 +449,24 @@
 
   async function generateLessonTypeDay() {
     if (!state.selectedLessonTypeId) return;
-    const res = await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/generate", { method: "POST" });
-    adminGenerateDayStatus.textContent =
-      "Сгенерировано на " + res.date + ". Учеников: " + res.students_count + ". По 10 задач на каждую сложность.";
+    adminGenerateDayBtn.disabled = true;
+    adminGenerateDayBtn.textContent = "Генерация...";
+    adminGenerateDayStatus.textContent = "Генерация заданий запущена...";
+    try {
+      const res = await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/generate", { method: "POST" });
+      adminGenerateDayStatus.textContent =
+        "Генерация завершена. Дата: " +
+        res.date +
+        ". Учеников: " +
+        res.students_count +
+        ". По 10 задач на каждую сложность.";
+    } catch (err) {
+      adminGenerateDayStatus.textContent = "Ошибка генерации. Проверьте логи API.";
+      throw err;
+    } finally {
+      adminGenerateDayBtn.disabled = false;
+      adminGenerateDayBtn.textContent = "Сгенерировать задания на сутки";
+    }
   }
 
   function renderPack(questions) {

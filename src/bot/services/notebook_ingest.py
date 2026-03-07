@@ -5,6 +5,8 @@ import json
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
+from xml.etree import ElementTree as ET
+from zipfile import ZipFile
 
 from docx import Document
 from pypdf import PdfReader
@@ -56,15 +58,42 @@ def extract_text_from_txt(raw_bytes: bytes) -> tuple[str, str]:
 
 
 def extract_text_from_docx(raw_bytes: bytes) -> tuple[str, str]:
+    # Legacy binary Word format (.doc) often gets mislabeled as .docx.
+    if raw_bytes[:4] == b"\xD0\xCF\x11\xE0":
+        raise ValueError("This looks like legacy .doc. Please save as .docx or PDF")
+
     try:
         doc = Document(BytesIO(raw_bytes))
+        chunks = [p.text.strip() for p in doc.paragraphs if p.text and p.text.strip()]
+        # Include text from tables too, it is common in lesson handouts.
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    cell_text = (cell.text or "").strip()
+                    if cell_text:
+                        chunks.append(cell_text)
+        if chunks:
+            text = "\n\n".join(chunks)
+            title = chunks[0][:100]
+            return title, text
+    except Exception:
+        pass
+
+    # Fallback parser for some non-standard but valid docx packages.
+    try:
+        with ZipFile(BytesIO(raw_bytes)) as zf:
+            xml_data = zf.read("word/document.xml")
+        root = ET.fromstring(xml_data)
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        nodes = root.findall(".//w:t", ns)
+        chunks = [((node.text or "").strip()) for node in nodes if (node.text or "").strip()]
     except Exception as exc:
         raise ValueError("Invalid .docx content") from exc
-    paragraphs = [p.text.strip() for p in doc.paragraphs if p.text and p.text.strip()]
-    text = "\n\n".join(paragraphs)
-    if not text.strip():
+
+    if not chunks:
         raise ValueError(".docx has no readable text")
-    title = paragraphs[0][:100] if paragraphs else "Word lesson"
+    text = "\n\n".join(chunks)
+    title = chunks[0][:100]
     return title, text
 
 

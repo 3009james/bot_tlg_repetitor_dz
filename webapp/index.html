@@ -12,16 +12,16 @@
       <section class="card">
         <p class="kicker">Telegram Mini App</p>
         <h1 id="title">Neuro Scope Tester</h1>
-        <p class="subtitle" id="subtitle">Р—Р°РіСЂСѓР·РєР°...</p>
+        <p class="subtitle" id="subtitle">Загрузка...</p>
         <p class="error hidden" id="errorText"></p>
 
         <div id="pendingView" class="hidden">
-          <p class="panel-label">РћРїРёСЃР°РЅРёРµ</p>
-          <p class="hint">Р‘РѕС‚ РґР»СЏ РїРµСЂСЃРѕРЅР°Р»СЊРЅС‹С… РµР¶РµРґРЅРµРІРЅС‹С… Р·Р°РґР°РЅРёР№ Рё С‚РµСЃС‚РёСЂРѕРІР°РЅРёСЏ РїРѕ РІР°С€РёРј Р·Р°РЅСЏС‚РёСЏРј.</p>
-          <p class="panel-label">Р—Р°СЏРІРєР° РЅР° СѓС‡Р°СЃС‚РёРµ</p>
-          <input id="pendingSubject" class="text-input" placeholder="РќР°РїСЂР°РІР»РµРЅРёРµ (Python / C++ / РњР°С‚РµРјР°С‚РёРєР°)" />
-          <textarea id="pendingMessage" class="text-area" placeholder="РљРѕСЂРѕС‚РєРѕ Рѕ С‚РµРєСѓС‰РµРј СѓСЂРѕРІРЅРµ"></textarea>
-          <button id="pendingSendBtn" class="primary-btn">РћС‚РїСЂР°РІРёС‚СЊ Р·Р°СЏРІРєСѓ</button>
+          <p class="panel-label">Описание</p>
+          <p class="hint">Бот для персональных ежедневных заданий и тестирования по вашим занятиям.</p>
+          <p class="panel-label">Заявка на участие</p>
+          <input id="pendingSubject" class="text-input" placeholder="Направление (Python / C++ / Математика)" />
+          <textarea id="pendingMessage" class="text-area" placeholder="Коротко о текущем уровне"></textarea>
+          <button id="pendingSendBtn" class="primary-btn">Отправить заявку</button>
           <p id="pendingStatus" class="hint"></p>
         </div>
 
@@ -29,127 +29,126 @@
           <p id="studentUpdateInfo" class="hint"></p>
 
           <div id="studentStartStage">
-            <label class="group-title">Р’РёРґ Р·Р°РЅСЏС‚РёСЏ</label>
+            <label class="group-title">Вид занятия</label>
             <select id="studentLessonTypeSelect" class="text-input"></select>
-            <button id="studentBeginBtn" class="primary-btn">РќР°С‡Р°С‚СЊ</button>
+            <button id="studentBeginBtn" class="primary-btn">Начать</button>
           </div>
 
           <div id="studentModeStage" class="hidden">
-            <p class="panel-label">Р’С‹Р±РµСЂРёС‚Рµ СЂРµР¶РёРј</p>
+            <p class="panel-label">Выберите режим</p>
             <div class="admin-row">
-              <button id="studentModeTestBtn" class="mini-btn">РўРµСЃС‚РёСЂРѕРІР°РЅРёРµ</button>
-              <button id="studentModeManualBtn" class="mini-btn">Р’СЂСѓС‡РЅСѓСЋ</button>
+              <button id="studentModeTestBtn" class="mini-btn">Тестирование</button>
+              <button id="studentModeManualBtn" class="mini-btn">Вручную</button>
             </div>
           </div>
 
           <div id="studentDifficultyStage" class="hidden">
-            <p class="panel-label">Р’С‹Р±РµСЂРёС‚Рµ СЃР»РѕР¶РЅРѕСЃС‚СЊ</p>
+            <p class="panel-label">Выберите сложность</p>
             <div class="admin-row">
-              <button class="mini-btn student-difficulty" data-difficulty="low">РќРёР·РєРёР№</button>
-              <button class="mini-btn student-difficulty" data-difficulty="medium">РЎСЂРµРґРЅРёР№</button>
-              <button class="mini-btn student-difficulty" data-difficulty="high">Р’С‹СЃРѕРєРёР№</button>
+              <button class="mini-btn student-difficulty" data-difficulty="low">Низкий</button>
+              <button class="mini-btn student-difficulty" data-difficulty="medium">Средний</button>
+              <button class="mini-btn student-difficulty" data-difficulty="high">Высокий</button>
             </div>
           </div>
 
           <div id="studentQuizStage" class="hidden">
             <div class="quiz-head">
-              <span id="studentQuizProgress">Р’РѕРїСЂРѕСЃ 1/10</span>
+              <span id="studentQuizProgress">Вопрос 1/10</span>
             </div>
             <p class="question" id="studentQuizQuestion"></p>
             <div class="options" id="studentQuizOptions"></div>
             <div class="feedback hidden" id="studentQuizFeedback"></div>
-            <button class="secondary-btn hidden" id="studentShowSolutionBtn">РџРѕРєР°Р·Р°С‚СЊ СЂРµС€РµРЅРёРµ</button>
+            <button class="secondary-btn hidden" id="studentShowSolutionBtn">Показать решение</button>
             <div class="admin-row">
-              <button class="mini-btn" id="studentPrevQuestionBtn">в†ђ</button>
-              <button class="mini-btn" id="studentNextQuestionBtn">в†’</button>
-              <button class="mini-btn" id="studentRestartBtn">РџСЂРѕР№С‚Рё Р·Р°РЅРѕРІРѕ</button>
+              <button class="mini-btn" id="studentPrevQuestionBtn">←</button>
+              <button class="mini-btn" id="studentNextQuestionBtn">→</button>
+              <button class="mini-btn" id="studentRestartBtn">Пройти заново</button>
             </div>
             <p class="hint" id="studentResultInfo"></p>
           </div>
         </div>
 
         <div id="adminView" class="hidden">
-          <button id="adminLessonTypesBtn" class="primary-btn">Р’РёРґС‹ Р·Р°РЅСЏС‚РёР№</button>
+          <button id="adminLessonTypesBtn" class="primary-btn">Виды занятий</button>
 
           <div id="adminRequestsBlock" class="admin-block">
-            <h3>Р—Р°СЏРІРєРё СѓС‡РµРЅРёРєРѕРІ</h3>
+            <h3>Заявки учеников</h3>
             <div id="adminRequestsWrap" class="admin-list"></div>
           </div>
 
           <div id="adminLessonTypesList" class="admin-block hidden">
-            <h3>РЎРїРёСЃРѕРє РІРёРґРѕРІ Р·Р°РЅСЏС‚РёР№</h3>
+            <h3>Список видов занятий</h3>
             <div id="adminLessonTypesWrap" class="admin-list"></div>
           </div>
 
           <div id="adminLessonTypePanel" class="admin-block hidden">
-            <h3 id="adminLessonTypeTitle">Р’РёРґ Р·Р°РЅСЏС‚РёСЏ</h3>
-            <button id="adminBackToLessonTypesBtn" class="mini-btn">РќР°Р·Р°Рґ Рє РІРёРґР°Рј Р·Р°РЅСЏС‚РёР№</button>
+            <h3 id="adminLessonTypeTitle">Вид занятия</h3>
+            <button id="adminBackToLessonTypesBtn" class="mini-btn">Назад к видам занятий</button>
 
             <div class="admin-block">
-              <h3>Р—Р°РіСЂСѓР·РєР° РјР°С‚РµСЂРёР°Р»Р°</h3>
+              <h3>Загрузка материала</h3>
               <input id="adminLessonTypeFileInput" type="file" accept=".txt,.docx,.pdf" class="text-input" />
-              <button id="adminLessonTypeUploadBtn" class="primary-btn">Р—Р°РіСЂСѓР·РёС‚СЊ РјР°С‚РµСЂРёР°Р»</button>
+              <button id="adminLessonTypeUploadBtn" class="primary-btn">Загрузить материал</button>
               <p id="adminLessonTypeUploadStatus" class="hint"></p>
             </div>
 
             <div class="admin-block">
-              <h3>Р—Р°РіСЂСѓР¶РµРЅРЅС‹Рµ РјР°С‚РµСЂРёР°Р»С‹</h3>
+              <h3>Загруженные материалы</h3>
               <div id="adminMaterialsWrap" class="admin-list"></div>
             </div>
 
             <div class="admin-block">
-              <h3>Р’С‹Р±СЂР°С‚СЊ С‚РµРјС‹</h3>
-              <p class="hint">Р”РѕСЃС‚СѓРїРЅС‹Рµ С‚РµРјС‹:</p>
+              <h3>Выбрать темы</h3>
+              <p class="hint">Доступные темы:</p>
               <p id="adminAvailableTopics" class="hint"></p>
               <div class="admin-row">
                 <button id="adminSelectAllTopicsBtn" class="mini-btn">Выбрать все</button>
                 <button id="adminClearTopicsBtn" class="mini-btn">Снять все</button>
               </div>
               <div id="adminTopicsChecklist" class="admin-list"></div>
-              <button id="adminSaveTopicsBtn" class="mini-btn">РЎРѕС…СЂР°РЅРёС‚СЊ С‚РµРјС‹</button>
+              <button id="adminSaveTopicsBtn" class="mini-btn">Сохранить темы</button>
             </div>
 
             <div class="admin-block">
-              <h3>Р—Р°РєСЂРµРїРёС‚СЊ СѓС‡РµРЅРёРєР° Р·Р° РІРёРґРѕРј Р·Р°РЅСЏС‚РёСЏ</h3>
+              <h3>Закрепить ученика за видом занятия</h3>
               <div id="adminStudentsAssignWrap" class="admin-list"></div>
-              <button id="adminSaveStudentsAssignBtn" class="mini-btn">РЎРѕС…СЂР°РЅРёС‚СЊ Р·Р°РєСЂРµРїР»РµРЅРёРµ</button>
+              <button id="adminSaveStudentsAssignBtn" class="mini-btn">Сохранить закрепление</button>
             </div>
 
             <div class="admin-block">
-              <h3>Р“РµРЅРµСЂР°С†РёСЏ Р·Р°РґР°РЅРёР№</h3>
-              <button id="adminGenerateDayBtn" class="primary-btn">РЎРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ Р·Р°РґР°РЅРёСЏ РЅР° СЃСѓС‚РєРё</button>
+              <h3>Генерация заданий</h3>
+              <button id="adminGenerateDayBtn" class="primary-btn">Сгенерировать задания на сутки</button>
               <p id="adminGenerateDayStatus" class="hint"></p>
             </div>
 
             <div class="admin-block">
-              <h3>РџРѕСЃРјРѕС‚СЂРµС‚СЊ Р·Р°РґР°РЅРёСЏ РЅР° СЃСѓС‚РєРё</h3>
+              <h3>Посмотреть задания на сутки</h3>
               <div class="admin-row">
-                <button class="mini-btn admin-pack-diff" data-difficulty="low">РќРёР·РєРёР№</button>
-                <button class="mini-btn admin-pack-diff" data-difficulty="medium">РЎСЂРµРґРЅРёР№</button>
-                <button class="mini-btn admin-pack-diff" data-difficulty="high">Р’С‹СЃРѕРєРёР№</button>
+                <button class="mini-btn admin-pack-diff" data-difficulty="low">Низкий</button>
+                <button class="mini-btn admin-pack-diff" data-difficulty="medium">Средний</button>
+                <button class="mini-btn admin-pack-diff" data-difficulty="high">Высокий</button>
               </div>
               <div id="adminPackViewWrap" class="admin-list"></div>
             </div>
 
             <div class="admin-block">
-              <h3>Р РµР¶РёРј РіРµРЅРµСЂР°С†РёРё</h3>
+              <h3>Режим генерации</h3>
               <select id="adminGenerationMode" class="text-input">
-                <option value="manual">Р’СЂСѓС‡РЅСѓСЋ</option>
-                <option value="auto">РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРёР№</option>
+                <option value="manual">Вручную</option>
+                <option value="auto">Автоматический</option>
               </select>
               <div class="admin-row">
-                <input id="adminGenerateHour" type="number" min="0" max="23" class="text-input" placeholder="Р§Р°СЃС‹" />
-                <input id="adminGenerateMinute" type="number" min="0" max="59" class="text-input" placeholder="РњРёРЅСѓС‚С‹" />
+                <input id="adminGenerateHour" type="number" min="0" max="23" class="text-input" placeholder="Часы" />
+                <input id="adminGenerateMinute" type="number" min="0" max="59" class="text-input" placeholder="Минуты" />
               </div>
-              <button id="adminSaveScheduleBtn" class="mini-btn">РЎРѕС…СЂР°РЅРёС‚СЊ СЂРµР¶РёРј</button>
+              <button id="adminSaveScheduleBtn" class="mini-btn">Сохранить режим</button>
             </div>
           </div>
         </div>
 
-        <p class="hint">РРЅС‚РµСЂС„РµР№СЃ: С‚РµРјРЅРѕ-СЃРёРЅРёР№ Mini App.</p>
+        <p class="hint">Интерфейс: темно-синий Mini App.</p>
       </section>
     </main>
     <script src="./app.js?v=20260308-2"></script>
   </body>
 </html>
-

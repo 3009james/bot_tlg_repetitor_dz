@@ -432,7 +432,7 @@ async def admin_upload_lesson_type_material(
         digest = await build_material_digest(file.filename, raw, app.state.llm_client)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    extracted_topics = await app.state.llm_client.extract_topics(digest.compact_context, max_topics=24)
+    extracted_topics = await app.state.llm_client.extract_topics(digest.compact_context, max_topics=5)
     if not extracted_topics:
         extracted_topics = [digest.title]
     response_topics: list[str] = []

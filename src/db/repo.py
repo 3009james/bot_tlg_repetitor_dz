@@ -274,7 +274,7 @@ class BotRepo:
         )
 
     async def replace_lesson_type_material_topics(
-        self, lesson_type_id: int, material_id: int, topics: list[str]
+        self, lesson_type_id: int, material_id: int, topics: list[str], max_topics: int = 5
     ) -> list[str]:
         cleaned = []
         seen: set[str] = set()
@@ -287,6 +287,8 @@ class BotRepo:
                 continue
             seen.add(key)
             cleaned.append(topic)
+            if len(cleaned) >= max(1, int(max_topics)):
+                break
         await self.session.execute(delete(LessonTypeMaterialTopic).where(LessonTypeMaterialTopic.material_id == material_id))
         for topic in cleaned:
             self.session.add(

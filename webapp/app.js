@@ -65,7 +65,9 @@
   const adminLessonTypeUploadStatus = document.getElementById("adminLessonTypeUploadStatus");
   const adminMaterialsWrap = document.getElementById("adminMaterialsWrap");
   const adminAvailableTopics = document.getElementById("adminAvailableTopics");
-  const adminSelectedTopicsInput = document.getElementById("adminSelectedTopicsInput");
+  const adminTopicsChecklist = document.getElementById("adminTopicsChecklist");
+  const adminSelectAllTopicsBtn = document.getElementById("adminSelectAllTopicsBtn");
+  const adminClearTopicsBtn = document.getElementById("adminClearTopicsBtn");
   const adminStudentsAssignWrap = document.getElementById("adminStudentsAssignWrap");
   const adminSaveStudentsAssignBtn = document.getElementById("adminSaveStudentsAssignBtn");
   const adminSaveTopicsBtn = document.getElementById("adminSaveTopicsBtn");
@@ -312,6 +314,46 @@
     });
   }
 
+  function renderTopicChecklist(availableTopics, selectedTopics) {
+    if (!adminTopicsChecklist) return;
+    const available = Array.isArray(availableTopics) ? availableTopics : [];
+    const selected = new Set(Array.isArray(selectedTopics) ? selectedTopics : []);
+    const merged = [];
+    const seen = new Set();
+
+    available.forEach((topic) => {
+      const t = String(topic || "").trim();
+      if (!t || seen.has(t)) return;
+      seen.add(t);
+      merged.push(t);
+    });
+    selected.forEach((topic) => {
+      const t = String(topic || "").trim();
+      if (!t || seen.has(t)) return;
+      seen.add(t);
+      merged.push(t);
+    });
+
+    adminTopicsChecklist.innerHTML = "";
+    if (!merged.length) {
+      adminTopicsChecklist.innerHTML = '<div class="admin-item">Темы пока не обнаружены, сначала загрузите материалы.</div>';
+      return;
+    }
+
+    merged.forEach((topic) => {
+      const row = document.createElement("label");
+      row.className = "admin-item";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = "topic-checkbox";
+      cb.value = topic;
+      cb.checked = selected.has(topic);
+      row.appendChild(cb);
+      row.appendChild(document.createTextNode(" " + topic));
+      adminTopicsChecklist.appendChild(row);
+    });
+  }
+
   async function loadLessonTypePanel(lessonTypeId) {
     const details = await api("/api/admin/lesson-types/" + lessonTypeId);
     const students = await api("/api/admin/students");
@@ -319,9 +361,9 @@
 
     adminLessonTypeTitle.textContent = "Вид занятия: " + details.name;
     adminAvailableTopics.textContent = details.available_topics.length
-      ? details.available_topics.join(", ")
+      ? "Найдено тем: " + details.available_topics.length
       : "Темы пока не обнаружены, сначала загрузите материалы.";
-    adminSelectedTopicsInput.value = (details.selected_topics || []).join(", ");
+    renderTopicChecklist(details.available_topics || [], details.selected_topics || []);
     adminGenerationMode.value = details.generation_mode || "manual";
     adminGenerateHour.value = details.generate_hour;
     adminGenerateMinute.value = details.generate_minute;
@@ -346,9 +388,8 @@
 
   async function saveLessonTypeTopics() {
     if (!state.selectedLessonTypeId) return;
-    const topics = adminSelectedTopicsInput.value
-      .split(",")
-      .map((x) => x.trim())
+    const topics = Array.from(document.querySelectorAll(".topic-checkbox:checked"))
+      .map((el) => (el.value || "").trim())
       .filter(Boolean);
     await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/topics", {
       method: "POST",
@@ -672,6 +713,22 @@
       showError(err.message || err);
     }
   });
+
+  if (adminSelectAllTopicsBtn) {
+    adminSelectAllTopicsBtn.addEventListener("click", () => {
+      document.querySelectorAll(".topic-checkbox").forEach((el) => {
+        el.checked = true;
+      });
+    });
+  }
+
+  if (adminClearTopicsBtn) {
+    adminClearTopicsBtn.addEventListener("click", () => {
+      document.querySelectorAll(".topic-checkbox").forEach((el) => {
+        el.checked = false;
+      });
+    });
+  }
 
   studentBeginBtn.addEventListener("click", () => {
     setStudentStage("mode");

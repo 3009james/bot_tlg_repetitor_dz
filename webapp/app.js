@@ -461,7 +461,8 @@
         res.students_count +
         ". По 10 задач на каждую сложность.";
     } catch (err) {
-      adminGenerateDayStatus.textContent = "Ошибка генерации. Проверьте логи API.";
+      const reason = String((err && err.message) || err || "Неизвестная ошибка");
+      adminGenerateDayStatus.textContent = "Ошибка генерации: " + reason;
       throw err;
     } finally {
       adminGenerateDayBtn.disabled = false;

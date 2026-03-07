@@ -10,10 +10,10 @@ from zoneinfo import ZoneInfo
 
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
-from fastapi import FastAPI, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
-from src.bot.services.notebook_ingest import build_notebook_digest
+from src.bot.services.notebook_ingest import build_material_digest
 from src.bot.services.quiz_service import QuizService
 from src.bot.services.routerai_client import RouterAIClient
 from src.core.config import get_settings
@@ -392,11 +392,12 @@ async def admin_upload_lesson_type_material(
     x_telegram_init_data: str | None = Header(default=None),
 ) -> dict[str, Any]:
     await _require_admin(x_telegram_init_data)
-    if not file.filename or not file.filename.lower().endswith(".ipynb"):
-        raise HTTPException(status_code=400, detail="Only .ipynb is supported")
+    allowed = (".txt", ".docx", ".pdf")
+    if not file.filename or not file.filename.lower().endswith(allowed):
+        raise HTTPException(status_code=400, detail="Only .txt, .docx, .pdf are supported")
     raw = await file.read()
     try:
-        digest = await build_notebook_digest(raw, app.state.llm_client)
+        digest = await build_material_digest(file.filename, raw, app.state.llm_client)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     async with session_scope(app.state.session_factory) as session:

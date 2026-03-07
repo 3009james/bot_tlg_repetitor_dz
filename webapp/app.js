@@ -325,7 +325,11 @@
   async function uploadLessonTypeMaterial() {
     if (!state.selectedLessonTypeId) return;
     const file = adminLessonTypeFileInput.files && adminLessonTypeFileInput.files[0];
-    if (!file) throw new Error("Выберите .ipynb файл");
+    if (!file) throw new Error("Выберите файл .txt, .docx или .pdf");
+    const lower = (file.name || "").toLowerCase();
+    if (!(lower.endsWith(".txt") || lower.endsWith(".docx") || lower.endsWith(".pdf"))) {
+      throw new Error("Поддерживаются только .txt, .docx, .pdf");
+    }
     const form = new FormData();
     form.append("file", file);
     const res = await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/materials/upload", {

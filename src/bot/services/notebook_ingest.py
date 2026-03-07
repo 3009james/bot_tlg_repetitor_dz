@@ -3,6 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from io import BytesIO
+from pathlib import Path
+
+from docx import Document
+from pypdf import PdfReader
 
 from src.bot.services.routerai_client import RouterAIClient
 
@@ -36,8 +41,69 @@ def extract_text_from_ipynb(raw_bytes: bytes) -> tuple[str, str]:
     return title, all_text
 
 
-async def build_notebook_digest(raw_bytes: bytes, llm: RouterAIClient) -> NotebookDigest:
-    title, raw_text = extract_text_from_ipynb(raw_bytes)
+def extract_text_from_txt(raw_bytes: bytes) -> tuple[str, str]:
+    for enc in ("utf-8-sig", "utf-8", "cp1251"):
+        try:
+            text = raw_bytes.decode(enc)
+            break
+        except Exception:
+            text = ""
+    if not text.strip():
+        raise ValueError("Invalid .txt content")
+    lines = [x.strip() for x in text.splitlines() if x.strip()]
+    title = lines[0][:100] if lines else "Text lesson"
+    return title, text
+
+
+def extract_text_from_docx(raw_bytes: bytes) -> tuple[str, str]:
+    try:
+        doc = Document(BytesIO(raw_bytes))
+    except Exception as exc:
+        raise ValueError("Invalid .docx content") from exc
+    paragraphs = [p.text.strip() for p in doc.paragraphs if p.text and p.text.strip()]
+    text = "\n\n".join(paragraphs)
+    if not text.strip():
+        raise ValueError(".docx has no readable text")
+    title = paragraphs[0][:100] if paragraphs else "Word lesson"
+    return title, text
+
+
+def extract_text_from_pdf(raw_bytes: bytes) -> tuple[str, str]:
+    try:
+        reader = PdfReader(BytesIO(raw_bytes))
+    except Exception as exc:
+        raise ValueError("Invalid .pdf content") from exc
+    chunks: list[str] = []
+    for page in reader.pages:
+        try:
+            text = page.extract_text() or ""
+        except Exception:
+            text = ""
+        text = text.strip()
+        if text:
+            chunks.append(text)
+    if not chunks:
+        raise ValueError(".pdf has no readable text")
+    all_text = "\n\n".join(chunks)
+    title = chunks[0].split("\n")[0][:100]
+    return title, all_text
+
+
+def extract_text_from_material(filename: str, raw_bytes: bytes) -> tuple[str, str]:
+    ext = Path(filename).suffix.lower()
+    if ext == ".ipynb":
+        return extract_text_from_ipynb(raw_bytes)
+    if ext == ".txt":
+        return extract_text_from_txt(raw_bytes)
+    if ext == ".docx":
+        return extract_text_from_docx(raw_bytes)
+    if ext == ".pdf":
+        return extract_text_from_pdf(raw_bytes)
+    raise ValueError("Unsupported file format. Use .txt, .docx or .pdf")
+
+
+async def build_material_digest(filename: str, raw_bytes: bytes, llm: RouterAIClient) -> NotebookDigest:
+    title, raw_text = extract_text_from_material(filename, raw_bytes)
     content_hash = hashlib.sha256(raw_bytes).hexdigest()
     compact_context = await llm.summarize_lesson(raw_text)
     tokens_estimate = max(1, len(compact_context) // 4)
@@ -47,3 +113,8 @@ async def build_notebook_digest(raw_bytes: bytes, llm: RouterAIClient) -> Notebo
         compact_context=compact_context[:20000],
         tokens_estimate=tokens_estimate,
     )
+
+
+async def build_notebook_digest(raw_bytes: bytes, llm: RouterAIClient) -> NotebookDigest:
+    # Backward compatibility for old bot flow.
+    return await build_material_digest("lesson.ipynb", raw_bytes, llm)

@@ -63,6 +63,7 @@
   const adminLessonTypeFileInput = document.getElementById("adminLessonTypeFileInput");
   const adminLessonTypeUploadBtn = document.getElementById("adminLessonTypeUploadBtn");
   const adminLessonTypeUploadStatus = document.getElementById("adminLessonTypeUploadStatus");
+  const adminMaterialsWrap = document.getElementById("adminMaterialsWrap");
   const adminAvailableTopics = document.getElementById("adminAvailableTopics");
   const adminSelectedTopicsInput = document.getElementById("adminSelectedTopicsInput");
   const adminStudentsAssignWrap = document.getElementById("adminStudentsAssignWrap");
@@ -91,6 +92,16 @@
     }
     errorText.classList.remove("hidden");
     errorText.textContent = String(message);
+  }
+
+  function notify(message) {
+    const text = String(message || "");
+    if (!text) return;
+    if (tg && typeof tg.showAlert === "function") {
+      tg.showAlert(text);
+      return;
+    }
+    window.alert(text);
   }
 
   async function api(path, options = {}) {
@@ -265,6 +276,42 @@
     });
   }
 
+  function renderMaterials(items) {
+    adminMaterialsWrap.innerHTML = "";
+    if (!items || !items.length) {
+      adminMaterialsWrap.innerHTML = '<div class="admin-item">Материалов пока нет.</div>';
+      return;
+    }
+    items.forEach((m) => {
+      const item = document.createElement("div");
+      item.className = "admin-item";
+      const created = m.created_at ? new Date(m.created_at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" }) : "-";
+      const topics = Array.isArray(m.topics) && m.topics.length ? m.topics.join(", ") : "темы не выделены";
+      item.innerHTML =
+        '<p class="admin-item-title">' +
+        (m.title || m.source_filename || ("Материал #" + m.id)) +
+        "</p>" +
+        "<p>Файл: " +
+        (m.source_filename || "-") +
+        "</p>" +
+        "<p>Темы: " +
+        topics +
+        "</p>" +
+        "<p>Добавлен: " +
+        created +
+        " | tokens~" +
+        Number(m.tokens_estimate || 0) +
+        "</p>";
+      const delBtn = document.createElement("button");
+      delBtn.className = "mini-btn";
+      delBtn.textContent = "Удалить";
+      delBtn.dataset.materialId = String(m.id);
+      delBtn.dataset.action = "delete-material";
+      item.appendChild(delBtn);
+      adminMaterialsWrap.appendChild(item);
+    });
+  }
+
   async function loadLessonTypePanel(lessonTypeId) {
     const details = await api("/api/admin/lesson-types/" + lessonTypeId);
     const students = await api("/api/admin/students");
@@ -279,12 +326,22 @@
     adminGenerateHour.value = details.generate_hour;
     adminGenerateMinute.value = details.generate_minute;
     renderStudentsAssign(details.students || []);
+    renderMaterials(details.materials || []);
     adminPackViewWrap.innerHTML = "";
     adminGenerateDayStatus.textContent = "";
-    adminLessonTypeUploadStatus.textContent = "";
 
     setHidden(adminLessonTypesList, true);
     setHidden(adminLessonTypePanel, false);
+  }
+
+  async function deleteLessonTypeMaterial(materialId) {
+    if (!state.selectedLessonTypeId) return;
+    await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/materials/" + materialId, {
+      method: "DELETE",
+    });
+    await loadLessonTypePanel(state.selectedLessonTypeId);
+    adminLessonTypeUploadStatus.textContent = "Материал удален.";
+    notify("Материал удален");
   }
 
   async function saveLessonTypeTopics() {
@@ -332,15 +389,21 @@
     }
     const form = new FormData();
     form.append("file", file);
+    adminLessonTypeUploadBtn.disabled = true;
+    adminLessonTypeUploadBtn.textContent = "Загрузка...";
     const res = await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/materials/upload", {
       method: "POST",
       body: form,
     });
+    await loadLessonTypePanel(state.selectedLessonTypeId);
     const topics = Array.isArray(res.topics) ? res.topics : [];
     const topicsText = topics.length ? " Темы: " + topics.join(", ") : "";
-    adminLessonTypeUploadStatus.textContent =
-      (res.status === "duplicate" ? "Дубликат файла." : "Материал загружен и обработан LLM.") + topicsText;
-    await loadLessonTypePanel(state.selectedLessonTypeId);
+    const created = res.status !== "duplicate";
+    adminLessonTypeUploadStatus.textContent = (created ? "Материал загружен." : "Дубликат файла, повторная загрузка не нужна.") + topicsText;
+    adminLessonTypeFileInput.value = "";
+    notify(created ? "Материал загружен" : "Этот материал уже был загружен");
+    adminLessonTypeUploadBtn.disabled = false;
+    adminLessonTypeUploadBtn.textContent = "Загрузить материал";
   }
 
   async function generateLessonTypeDay() {
@@ -541,6 +604,21 @@
     try {
       showError("");
       await uploadLessonTypeMaterial();
+    } catch (err) {
+      adminLessonTypeUploadBtn.disabled = false;
+      adminLessonTypeUploadBtn.textContent = "Загрузить материал";
+      showError(err.message || err);
+    }
+  });
+
+  adminMaterialsWrap.addEventListener("click", async (event) => {
+    const target = event.target;
+    if (!target || target.dataset.action !== "delete-material") return;
+    const materialId = Number(target.dataset.materialId);
+    if (!materialId) return;
+    try {
+      showError("");
+      await deleteLessonTypeMaterial(materialId);
     } catch (err) {
       showError(err.message || err);
     }

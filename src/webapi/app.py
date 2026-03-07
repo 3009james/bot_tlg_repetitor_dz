@@ -370,6 +370,19 @@ async def admin_lesson_type_details(lesson_type_id: int, x_telegram_init_data: s
         students = await repo.list_students_by_lesson_type(lesson_type_id)
         material_topics = await repo.list_lesson_type_material_topics(lesson_type_id)
         selected_topics = await repo.get_lesson_type_topics(lesson_type_id)
+        materials = await repo.get_lesson_type_materials(lesson_type_id, limit=300)
+        material_items = []
+        for m in materials:
+            material_items.append(
+                {
+                    "id": m.id,
+                    "title": m.title,
+                    "source_filename": m.source_filename,
+                    "tokens_estimate": m.tokens_estimate,
+                    "created_at": m.created_at.isoformat() if m.created_at else None,
+                    "topics": await repo.get_lesson_type_material_topics(m.id),
+                }
+            )
     return {
         "id": lesson_type.id,
         "name": lesson_type.name,
@@ -382,6 +395,7 @@ async def admin_lesson_type_details(lesson_type_id: int, x_telegram_init_data: s
         ],
         "available_topics": material_topics,
         "selected_topics": selected_topics,
+        "materials": material_items,
     }
 
 
@@ -396,31 +410,65 @@ async def admin_upload_lesson_type_material(
     if not file.filename or not file.filename.lower().endswith(allowed):
         raise HTTPException(status_code=400, detail="Only .txt, .docx, .pdf are supported")
     raw = await file.read()
+    content_hash = hashlib.sha256(raw).hexdigest()
+
+    # Fast path: duplicate with topics already extracted.
+    async with session_scope(app.state.session_factory) as session:
+        repo = BotRepo(session)
+        lesson_type = await repo.get_lesson_type(lesson_type_id)
+        if not lesson_type:
+            raise HTTPException(status_code=404, detail="Lesson type not found")
+        existing = await repo.get_lesson_type_material_by_hash(lesson_type_id, content_hash)
+        if existing:
+            existing_topics = await repo.get_lesson_type_material_topics(existing.id)
+            if existing_topics:
+                available = await repo.list_lesson_type_material_topics(lesson_type_id)
+                current_topics = await repo.get_lesson_type_topics(lesson_type_id)
+                if not current_topics and available:
+                    await repo.replace_lesson_type_topics(lesson_type_id, available)
+                return {"status": "duplicate", "title": existing.title, "topics": existing_topics}
+
     try:
         digest = await build_material_digest(file.filename, raw, app.state.llm_client)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     extracted_topics = await app.state.llm_client.extract_topics(digest.compact_context, max_topics=24)
+    if not extracted_topics:
+        extracted_topics = [digest.title]
     response_topics: list[str] = []
     async with session_scope(app.state.session_factory) as session:
         repo = BotRepo(session)
         lesson_type = await repo.get_lesson_type(lesson_type_id)
         if not lesson_type:
             raise HTTPException(status_code=404, detail="Lesson type not found")
-        created = await repo.create_lesson_type_material(
-            lesson_type_id=lesson_type_id,
-            title=digest.title,
-            source_filename=file.filename,
-            content_hash=digest.content_hash,
-            compact_context=digest.compact_context,
-            tokens_estimate=digest.tokens_estimate,
-        )
-        if created:
+        existing = await repo.get_lesson_type_material_by_hash(lesson_type_id, content_hash)
+        if existing:
+            # Legacy duplicate without topics: refresh digest and backfill topics.
+            existing.title = digest.title
+            existing.source_filename = file.filename
+            existing.compact_context = digest.compact_context
+            existing.tokens_estimate = digest.tokens_estimate
             response_topics = await repo.replace_lesson_type_material_topics(
                 lesson_type_id=lesson_type_id,
-                material_id=created.id,
+                material_id=existing.id,
                 topics=extracted_topics,
             )
+            created = None
+        else:
+            created = await repo.create_lesson_type_material(
+                lesson_type_id=lesson_type_id,
+                title=digest.title,
+                source_filename=file.filename,
+                content_hash=digest.content_hash,
+                compact_context=digest.compact_context,
+                tokens_estimate=digest.tokens_estimate,
+            )
+            if created:
+                response_topics = await repo.replace_lesson_type_material_topics(
+                    lesson_type_id=lesson_type_id,
+                    material_id=created.id,
+                    topics=extracted_topics,
+                )
         # Автоматически обновляем выбранные темы только при первом заполнении.
         current_topics = await repo.get_lesson_type_topics(lesson_type_id)
         available = await repo.list_lesson_type_material_topics(lesson_type_id)
@@ -447,6 +495,29 @@ async def admin_set_lesson_type_topics(
             raise HTTPException(status_code=404, detail="Lesson type not found")
         selected = await repo.replace_lesson_type_topics(lesson_type_id, payload.topics)
     return {"lesson_type_id": lesson_type_id, "selected_topics": selected}
+
+
+@app.delete("/api/admin/lesson-types/{lesson_type_id}/materials/{material_id}")
+async def admin_delete_lesson_type_material(
+    lesson_type_id: int,
+    material_id: int,
+    x_telegram_init_data: str | None = Header(default=None),
+) -> dict[str, Any]:
+    await _require_admin(x_telegram_init_data)
+    async with session_scope(app.state.session_factory) as session:
+        repo = BotRepo(session)
+        lesson_type = await repo.get_lesson_type(lesson_type_id)
+        if not lesson_type:
+            raise HTTPException(status_code=404, detail="Lesson type not found")
+        deleted = await repo.delete_lesson_type_material(lesson_type_id, material_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Material not found")
+        available = await repo.list_lesson_type_material_topics(lesson_type_id)
+        selected = await repo.get_lesson_type_topics(lesson_type_id)
+        selected_filtered = [t for t in selected if t in set(available)]
+        if selected != selected_filtered:
+            await repo.replace_lesson_type_topics(lesson_type_id, selected_filtered)
+    return {"status": "deleted", "material_id": material_id}
 
 
 @app.post("/api/admin/lesson-types/{lesson_type_id}/students")

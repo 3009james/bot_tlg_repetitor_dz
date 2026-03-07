@@ -259,6 +259,20 @@ class BotRepo:
         await self.session.flush()
         return material
 
+    async def get_lesson_type_material_by_hash(self, lesson_type_id: int, content_hash: str) -> LessonTypeMaterial | None:
+        return await self.session.scalar(
+            select(LessonTypeMaterial).where(
+                and_(LessonTypeMaterial.lesson_type_id == lesson_type_id, LessonTypeMaterial.content_hash == content_hash)
+            )
+        )
+
+    async def get_lesson_type_material_by_id(self, lesson_type_id: int, material_id: int) -> LessonTypeMaterial | None:
+        return await self.session.scalar(
+            select(LessonTypeMaterial).where(
+                and_(LessonTypeMaterial.lesson_type_id == lesson_type_id, LessonTypeMaterial.id == material_id)
+            )
+        )
+
     async def replace_lesson_type_material_topics(
         self, lesson_type_id: int, material_id: int, topics: list[str]
     ) -> list[str]:
@@ -284,6 +298,34 @@ class BotRepo:
             )
         await self.session.flush()
         return cleaned
+
+    async def get_lesson_type_material_topics(self, material_id: int) -> list[str]:
+        result = await self.session.scalars(
+            select(LessonTypeMaterialTopic.topic)
+            .where(LessonTypeMaterialTopic.material_id == material_id)
+            .order_by(LessonTypeMaterialTopic.topic.asc())
+        )
+        topics: list[str] = []
+        seen: set[str] = set()
+        for raw in result:
+            topic = self._clean_topic(raw)
+            if self._is_noise_topic(topic):
+                continue
+            key = topic.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            topics.append(topic)
+        return topics
+
+    async def delete_lesson_type_material(self, lesson_type_id: int, material_id: int) -> bool:
+        material = await self.get_lesson_type_material_by_id(lesson_type_id, material_id)
+        if not material:
+            return False
+        await self.session.execute(delete(LessonTypeMaterialTopic).where(LessonTypeMaterialTopic.material_id == material_id))
+        await self.session.delete(material)
+        await self.session.flush()
+        return True
 
     async def get_lesson_type_materials(self, lesson_type_id: int, limit: int = 30) -> list[LessonTypeMaterial]:
         result = await self.session.scalars(

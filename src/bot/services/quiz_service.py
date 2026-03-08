@@ -34,7 +34,13 @@ class QuizService:
         else:
             materials = await repo.get_student_materials(student.id, limit=40)
         context = self._build_context(materials, selected_topics)
-        questions = await self.llm.generate_questions(context, difficulty.value, count=10, lesson_type_slug="python")
+        questions = await self.llm.generate_questions(
+            context,
+            difficulty.value,
+            count=10,
+            lesson_type_slug="python",
+            selected_topics=selected_topics,
+        )
         await repo.replace_quiz_questions(quiz.id, questions)
         quiz.status = QuizStatus.READY
         await repo.reset_progress(quiz.id, student.id)
@@ -92,6 +98,7 @@ class QuizService:
             difficulty.value,
             count=10,
             lesson_type_slug=lesson_type.slug,
+            selected_topics=selected_topics,
         )
         quiz = await repo.get_quiz(student.id, lesson_type.id, quiz_date, difficulty)
         if not quiz:
@@ -129,6 +136,7 @@ class QuizService:
             difficulty.value,
             count=10,
             lesson_type_slug=lesson_type.slug,
+            selected_topics=selected_topics,
         )
         await repo.upsert_lesson_type_daily_pack(lesson_type.id, quiz_date, difficulty, questions)
         return questions
@@ -151,7 +159,7 @@ class QuizService:
         chunks = [m.compact_context for m in materials if m.compact_context]
         topics_hint = ""
         if selected_topics:
-            topics_hint = "Выбранные темы: " + "; ".join(selected_topics[:20]) + "\n\n"
+            topics_hint = "ОБЯЗАТЕЛЬНЫЕ выбранные темы: " + "; ".join(selected_topics[:20]) + "\n\n"
         if not chunks:
             return (
                 f"Предмет: {lesson_type_name}\n"

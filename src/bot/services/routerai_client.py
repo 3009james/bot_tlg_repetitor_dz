@@ -37,19 +37,44 @@ class RouterAIClient:
         difficulty: str,
         count: int = 10,
         lesson_type_slug: str = "",
+        selected_topics: list[str] | None = None,
     ) -> list[dict]:
+        topics = [str(x).strip() for x in (selected_topics or []) if str(x).strip()]
         if not self.api_key:
-            return self._fallback_questions(compact_context, difficulty, count, lesson_type_slug)
+            return self._fallback_questions(compact_context, difficulty, count, lesson_type_slug, topics)
 
-        prompt = self._build_generation_prompt(difficulty=difficulty, count=count, lesson_type_slug=lesson_type_slug)
+        prompt = self._build_generation_prompt(
+            difficulty=difficulty,
+            count=count,
+            lesson_type_slug=lesson_type_slug,
+            selected_topics=topics,
+        )
+        user_payload = compact_context
+        if topics:
+            user_payload = "Выбранные темы:\n- " + "\n- ".join(topics[:15]) + "\n\nМатериалы:\n" + compact_context
         try:
-            raw = await self._chat_json(prompt, compact_context, expect_json=True, timeout_sec=120)
-            parsed = self._parse_generated_questions(raw, count=count, lesson_type_slug=lesson_type_slug)
-            if len(parsed) >= max(3, count):
+            raw = await self._chat_json(prompt, user_payload, expect_json=True, timeout_sec=180)
+            parsed = self._parse_generated_questions(
+                raw,
+                count=count,
+                lesson_type_slug=lesson_type_slug,
+                selected_topics=topics,
+            )
+            if len(parsed) >= count:
                 return parsed[:count]
+            strict_prompt = prompt + "\nВажно: запрет на однословные или общие формулировки. Каждый вопрос должен быть самодостаточным."
+            raw_retry = await self._chat_json(strict_prompt, user_payload, expect_json=True, timeout_sec=180)
+            parsed_retry = self._parse_generated_questions(
+                raw_retry,
+                count=count,
+                lesson_type_slug=lesson_type_slug,
+                selected_topics=topics,
+            )
+            if len(parsed_retry) >= count:
+                return parsed_retry[:count]
         except Exception:
             log.exception("RouterAI question generation failed, using fallback questions")
-        return self._fallback_questions(compact_context, difficulty, count, lesson_type_slug)
+        return self._fallback_questions(compact_context, difficulty, count, lesson_type_slug, topics)
 
     async def evaluate_code_solution(
         self,
@@ -129,29 +154,45 @@ class RouterAIClient:
             log.exception("RouterAI topic extraction failed, using fallback topics")
         return self._fallback_topics(compact_context, max_topics)
 
-    def _build_generation_prompt(self, *, difficulty: str, count: int, lesson_type_slug: str) -> str:
+    def _build_generation_prompt(
+        self,
+        *,
+        difficulty: str,
+        count: int,
+        lesson_type_slug: str,
+        selected_topics: list[str],
+    ) -> str:
         slug = (lesson_type_slug or "").strip().lower()
+        topics_block = ""
+        if selected_topics:
+            topics_block = "Обязательные темы (вопросы должны опираться на них):\n- " + "\n- ".join(selected_topics[:15]) + "\n"
         if slug in {"cpp", "python"}:
             lang = "C++" if slug == "cpp" else "Python"
             return (
-                "Сгенерируй задания по материалу.\n"
+                "Сгенерируй качественный набор заданий строго по предоставленным материалам.\n"
                 f"Предмет: {lang}. Сложность: {difficulty}. Количество: {count}.\n"
+                + topics_block +
                 "Нужно ровно 10 заданий:\n"
-                "- 3 задания типа mcq (теория, 4-5 вариантов, один верный)\n"
-                "- 7 заданий типа code (практика, написать программу)\n"
+                "- 3 задания типа mcq (теория, 4-5 вариантов, один верный).\n"
+                "- 7 заданий типа code (практика, написать программу).\n"
+                "Для каждого code-вопроса формулировка должна начинаться со слов: «Напишите программу, ...».\n"
+                "Запрещены короткие/общие вопросы вроде «C++», «Python», «что такое цикл?» без контекста.\n"
+                "Каждый вопрос должен быть самодостаточным и конкретным.\n"
                 "Верни строго JSON-массив объектов.\n"
                 "Формат объекта:\n"
                 '{"type":"mcq","question":"...","options":["..."],"correct_index":0,"explanation":"..."}\n'
                 "или\n"
-                '{"type":"code","question":"...","explanation":"...","meta":{"language":"python|cpp","reference_solution":"..."}}\n'
+                '{"type":"code","question":"Напишите программу, ...","explanation":"...","meta":{"language":"python|cpp","reference_solution":"..."}}\n'
                 "Без markdown, без пояснительного текста."
             )
         return (
-            "Сгенерируй задания по материалу.\n"
+            "Сгенерируй качественный набор заданий строго по материалам.\n"
             f"Предмет: математика. Сложность: {difficulty}. Количество: {count}.\n"
+            + topics_block +
             "Нужно ровно 10 заданий типа mcq:\n"
-            "- 3 теоретических\n"
-            "- 7 практических задач с вариантами ответа\n"
+            "- 3 теоретических.\n"
+            "- 7 практических задач с вариантами ответа.\n"
+            "Запрещены однословные и общие вопросы без условия.\n"
             "Верни строго JSON-массив объектов формата:\n"
             '{"type":"mcq","question":"...","options":["..."],"correct_index":0,"explanation":"пошаговое решение"}\n'
             "Без markdown."
@@ -191,7 +232,14 @@ class RouterAIClient:
                         return json.dumps(parsed["items"], ensure_ascii=False)
             return content
 
-    def _parse_generated_questions(self, raw: str, *, count: int, lesson_type_slug: str) -> list[dict]:
+    def _parse_generated_questions(
+        self,
+        raw: str,
+        *,
+        count: int,
+        lesson_type_slug: str,
+        selected_topics: list[str],
+    ) -> list[dict]:
         data = json.loads(raw)
         if isinstance(data, dict):
             if isinstance(data.get("questions"), list):
@@ -220,6 +268,9 @@ class RouterAIClient:
                 reference = str(meta.get("reference_solution", "")).strip()
                 if not reference:
                     continue
+                question = self._normalize_code_question(question)
+                if self._is_low_quality_question(question, selected_topics):
+                    continue
                 parsed.append(
                     {
                         "type": "code",
@@ -241,6 +292,8 @@ class RouterAIClient:
             options = [str(x).strip() for x in options if str(x).strip()][:5]
             if len(options) < 4:
                 continue
+            if self._is_low_quality_question(question, selected_topics):
+                continue
             correct_index = int(item.get("correct_index", 0))
             if correct_index < 0 or correct_index >= len(options):
                 correct_index = 0
@@ -255,6 +308,48 @@ class RouterAIClient:
                 }
             )
         return parsed[:count]
+
+    @staticmethod
+    def _normalize_code_question(question: str) -> str:
+        q = question.strip()
+        if not q:
+            return q
+        lower = q.lower()
+        if lower.startswith("напишите программу"):
+            return q
+        if lower.startswith("написать программу"):
+            return "Напишите программу" + q[len("написать программу") :]
+        if lower.startswith("реализуйте"):
+            return "Напишите программу, " + q[10:].lstrip(" ,")
+        return "Напишите программу, которая " + q[0].lower() + q[1:]
+
+    @classmethod
+    def _is_low_quality_question(cls, question: str, selected_topics: list[str]) -> bool:
+        q = (question or "").strip()
+        if len(q) < 24:
+            return True
+        words = re.findall(r"[A-Za-zА-Яа-я0-9_+#]{2,}", q.lower())
+        if len(words) < 5:
+            return True
+        bad_exact = {
+            "c++",
+            "cpp",
+            "python",
+            "математика",
+            "вопрос",
+            "теория",
+            "практика",
+        }
+        if q.lower() in bad_exact:
+            return True
+        if selected_topics:
+            topic_words: set[str] = set()
+            for topic in selected_topics[:20]:
+                for w in re.findall(r"[A-Za-zА-Яа-я0-9_+#]{3,}", topic.lower()):
+                    topic_words.add(w)
+            if topic_words and not any(w in topic_words for w in words) and len(words) < 12:
+                return True
+        return False
 
     @staticmethod
     def _cheap_summary(raw_text: str) -> str:
@@ -279,8 +374,17 @@ class RouterAIClient:
         }
 
     @staticmethod
-    def _fallback_questions(compact_context: str, difficulty: str, count: int, lesson_type_slug: str) -> list[dict]:
-        snippets = [x.strip(" -•\t") for x in compact_context.splitlines() if len(x.strip()) > 8]
+    def _fallback_questions(
+        compact_context: str,
+        difficulty: str,
+        count: int,
+        lesson_type_slug: str,
+        selected_topics: list[str],
+    ) -> list[dict]:
+        snippets = [x.strip(" -•\t") for x in compact_context.splitlines() if len(x.strip()) > 15]
+        snippets = [x for x in snippets if len(x.split()) >= 3]
+        if selected_topics:
+            snippets = selected_topics + snippets
         if not snippets:
             snippets = ["Основы темы урока", "Практические шаги решения", "Типичные ошибки"]
 
@@ -317,7 +421,7 @@ class RouterAIClient:
                 items.append(
                     {
                         "type": "code",
-                        "question": f"[{difficulty}] Практика: напишите программу по теме «{topic[:60]}».",
+                        "question": f"Напишите программу, которая решает задачу по теме «{topic[:80]}».",
                         "options": [],
                         "correct_index": -1,
                         "explanation": "Проверьте корректность на граничных случаях.",
@@ -346,7 +450,7 @@ class RouterAIClient:
             items.append(
                 {
                     "type": "mcq",
-                    "question": f"[{difficulty}] {topic[:90]}",
+                    "question": f"[{difficulty}] Выберите верное решение для задачи по теме «{topic[:90]}».",
                     "options": options,
                     "correct_index": correct,
                     "explanation": "Сверьте решение с формулой и проверкой результата.",

@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
   if (tg) {
     tg.ready();
@@ -45,6 +45,7 @@
   const studentCodeCheckBtn = document.getElementById("studentCodeCheckBtn");
   const studentSuggestedCodeWrap = document.getElementById("studentSuggestedCodeWrap");
   const studentSuggestedCode = document.getElementById("studentSuggestedCode");
+  const studentSuggestedCodeLabel = document.getElementById("studentSuggestedCodeLabel");
   const studentQuizFeedback = document.getElementById("studentQuizFeedback");
   const studentShowSolutionBtn = document.getElementById("studentShowSolutionBtn");
   const studentPrevQuestionBtn = document.getElementById("studentPrevQuestionBtn");
@@ -435,6 +436,7 @@
     studentQuizQuestion.textContent = q.question;
     studentQuizOptions.innerHTML = "";
     studentSuggestedCode.textContent = "";
+    if (studentSuggestedCodeLabel) studentSuggestedCodeLabel.textContent = "Рекомендуемый код";
     setHidden(studentSuggestedCodeWrap, true);
     studentQuizFeedback.classList.add("hidden");
     studentShowSolutionBtn.classList.add("hidden");
@@ -445,6 +447,7 @@
       studentCodeInput.value = meta && meta.code_text ? String(meta.code_text) : "";
       if (meta && meta.feedback_text) showFeedback(String(meta.feedback_text), !!meta.is_correct);
       if (meta && meta.suggested_code) {
+        if (studentSuggestedCodeLabel) studentSuggestedCodeLabel.textContent = "Рекомендуемый код";
         studentSuggestedCode.textContent = String(meta.suggested_code);
         setHidden(studentSuggestedCodeWrap, false);
       }
@@ -576,6 +579,7 @@
       };
       showFeedback(String(res.feedback || ""), !!res.is_correct);
       if (res.suggested_code) {
+        if (studentSuggestedCodeLabel) studentSuggestedCodeLabel.textContent = "Рекомендуемый код";
         studentSuggestedCode.textContent = String(res.suggested_code);
         setHidden(studentSuggestedCodeWrap, false);
       }
@@ -599,6 +603,16 @@
     const q = state.student.questions[state.student.currentIndex];
     if (!q) return;
     showFeedback("Решение: " + (q.solution || "Решение не указано."), true);
+    if (q.type !== "code") return;
+    const meta = q.meta || {};
+    const referenceSolution = typeof meta.reference_solution === "string" ? meta.reference_solution.trim() : "";
+    const answerMeta = state.student.answerMeta[q.position] || {};
+    const suggested = typeof answerMeta.suggested_code === "string" ? answerMeta.suggested_code.trim() : "";
+    const codeSolution = referenceSolution || suggested;
+    if (!codeSolution) return;
+    if (studentSuggestedCodeLabel) studentSuggestedCodeLabel.textContent = "Код-решение";
+    studentSuggestedCode.textContent = codeSolution;
+    setHidden(studentSuggestedCodeWrap, false);
   });
   studentRestartBtn.addEventListener("click", async () => {
     try {

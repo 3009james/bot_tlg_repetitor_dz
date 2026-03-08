@@ -17,9 +17,11 @@ from src.db.models import (
     LessonTypeDailyPack,
     LessonTypeMaterial,
     LessonTypeMaterialTopic,
+    LessonTypeStudentGeneration,
     LessonTypeStudent,
     LessonTypeTopic,
     LessonMaterial,
+    QuestionType,
     RequestStatus,
     StudentTopic,
     StudentProgress,
@@ -162,6 +164,35 @@ class BotRepo:
             self.session.add(LessonTypeStudent(lesson_type_id=lesson_type_id, student_id=student_id))
         await self.session.flush()
         return cleaned
+
+    async def get_lesson_type_student_generation_state(
+        self, lesson_type_id: int, student_id: int
+    ) -> LessonTypeStudentGeneration | None:
+        return await self.session.scalar(
+            select(LessonTypeStudentGeneration).where(
+                and_(
+                    LessonTypeStudentGeneration.lesson_type_id == lesson_type_id,
+                    LessonTypeStudentGeneration.student_id == student_id,
+                )
+            )
+        )
+
+    async def touch_lesson_type_student_generation_state(
+        self, lesson_type_id: int, student_id: int, generated_at: datetime | None = None
+    ) -> LessonTypeStudentGeneration:
+        state = await self.get_lesson_type_student_generation_state(lesson_type_id, student_id)
+        if not state:
+            state = LessonTypeStudentGeneration(
+                lesson_type_id=lesson_type_id,
+                student_id=student_id,
+                last_generated_at=generated_at or datetime.now(timezone.utc),
+            )
+            self.session.add(state)
+            await self.session.flush()
+            return state
+        state.last_generated_at = generated_at or datetime.now(timezone.utc)
+        await self.session.flush()
+        return state
 
     async def create_access_request(
         self, telegram_id: int, full_name: str, username: str | None, subject: str | None, message: str | None
@@ -526,17 +557,55 @@ class BotRepo:
         await self.session.flush()
         return cleaned
 
-    async def get_quiz(self, student_id: int, quiz_date: date, difficulty: Difficulty) -> DailyQuiz | None:
+    async def get_quiz(
+        self, student_id: int, lesson_type_id: int, quiz_date: date, difficulty: Difficulty
+    ) -> DailyQuiz | None:
         stmt = select(DailyQuiz).where(
-            and_(DailyQuiz.student_id == student_id, DailyQuiz.quiz_date == quiz_date, DailyQuiz.difficulty == difficulty)
+            and_(
+                DailyQuiz.student_id == student_id,
+                DailyQuiz.lesson_type_id == lesson_type_id,
+                DailyQuiz.quiz_date == quiz_date,
+                DailyQuiz.difficulty == difficulty,
+            )
         )
         return await self.session.scalar(stmt)
 
     async def get_quiz_by_id(self, quiz_id: int) -> DailyQuiz | None:
         return await self.session.scalar(select(DailyQuiz).where(DailyQuiz.id == quiz_id))
 
-    async def create_quiz(self, student_id: int, quiz_date: date, difficulty: Difficulty) -> DailyQuiz:
-        quiz = DailyQuiz(student_id=student_id, quiz_date=quiz_date, difficulty=difficulty)
+    async def get_latest_quiz(
+        self, student_id: int, lesson_type_id: int, difficulty: Difficulty
+    ) -> DailyQuiz | None:
+        return await self.session.scalar(
+            select(DailyQuiz)
+            .where(
+                and_(
+                    DailyQuiz.student_id == student_id,
+                    DailyQuiz.lesson_type_id == lesson_type_id,
+                    DailyQuiz.difficulty == difficulty,
+                )
+            )
+            .order_by(DailyQuiz.quiz_date.desc(), DailyQuiz.generated_at.desc(), DailyQuiz.id.desc())
+            .limit(1)
+        )
+
+    async def get_lesson_type_latest_generated_at_for_student(self, student_id: int, lesson_type_id: int) -> datetime | None:
+        return await self.session.scalar(
+            select(func.max(DailyQuiz.generated_at)).where(
+                and_(
+                    DailyQuiz.student_id == student_id,
+                    DailyQuiz.lesson_type_id == lesson_type_id,
+                )
+            )
+        )
+
+    async def create_quiz(self, student_id: int, lesson_type_id: int, quiz_date: date, difficulty: Difficulty) -> DailyQuiz:
+        quiz = DailyQuiz(
+            student_id=student_id,
+            lesson_type_id=lesson_type_id,
+            quiz_date=quiz_date,
+            difficulty=difficulty,
+        )
         self.session.add(quiz)
         await self.session.flush()
         return quiz
@@ -544,12 +613,21 @@ class BotRepo:
     async def replace_quiz_questions(self, quiz_id: int, questions: list[dict]) -> None:
         await self.session.execute(delete(DailyQuestion).where(DailyQuestion.quiz_id == quiz_id))
         for i, q in enumerate(questions, start=1):
+            q_type_raw = str(q.get("type", "mcq")).strip().lower()
+            q_type = QuestionType.CODE if q_type_raw == QuestionType.CODE.value else QuestionType.MCQ
+            options = q.get("options") or []
+            correct_index = int(q.get("correct_index", 0))
+            if q_type == QuestionType.CODE:
+                options = []
+                correct_index = -1
             row = DailyQuestion(
                 quiz_id=quiz_id,
                 position=i,
                 question_text=q["question"],
-                options_json=json.dumps(q["options"], ensure_ascii=False),
-                correct_option_index=q["correct_index"],
+                options_json=json.dumps(options, ensure_ascii=False),
+                correct_option_index=correct_index,
+                question_type=q_type,
+                meta_json=json.dumps(q.get("meta", {}), ensure_ascii=False) if q.get("meta") else None,
                 explanation=q.get("explanation", ""),
             )
             self.session.add(row)
@@ -594,7 +672,15 @@ class BotRepo:
         return progress
 
     async def log_answer(
-        self, quiz_id: int, question_id: int, student_id: int, selected_index: int, is_correct: bool
+        self,
+        quiz_id: int,
+        question_id: int,
+        student_id: int,
+        selected_index: int,
+        is_correct: bool,
+        code_text: str | None = None,
+        feedback_text: str | None = None,
+        suggested_code: str | None = None,
     ) -> AnswerLog:
         row = AnswerLog(
             quiz_id=quiz_id,
@@ -602,6 +688,9 @@ class BotRepo:
             student_id=student_id,
             selected_option_index=selected_index,
             is_correct=1 if is_correct else 0,
+            code_text=code_text,
+            feedback_text=feedback_text,
+            suggested_code=suggested_code,
         )
         self.session.add(row)
         await self.session.flush()

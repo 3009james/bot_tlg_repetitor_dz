@@ -1,10 +1,10 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Neuro Scope Tester</title>
-    <link rel="stylesheet" href="./styles.css?v=20260306-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260308-3" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>
@@ -27,23 +27,19 @@
 
         <div id="studentView" class="hidden">
           <p id="studentUpdateInfo" class="hint"></p>
+          <p id="studentGenerateInfo" class="hint"></p>
 
           <div id="studentStartStage">
             <label class="group-title">Вид занятия</label>
             <select id="studentLessonTypeSelect" class="text-input"></select>
-            <button id="studentBeginBtn" class="primary-btn">Начать</button>
-          </div>
-
-          <div id="studentModeStage" class="hidden">
-            <p class="panel-label">Выберите режим</p>
             <div class="admin-row">
-              <button id="studentModeTestBtn" class="mini-btn">Тестирование</button>
-              <button id="studentModeManualBtn" class="mini-btn">Вручную</button>
+              <button id="studentBeginBtn" class="primary-btn">Начать</button>
+              <button id="studentGenerateBtn" class="secondary-btn">Новые задачи</button>
             </div>
           </div>
 
           <div id="studentDifficultyStage" class="hidden">
-            <p class="panel-label">Выберите сложность</p>
+            <p class="panel-label" id="studentDifficultyTitle">Выберите сложность</p>
             <div class="admin-row">
               <button class="mini-btn student-difficulty" data-difficulty="low">Низкий</button>
               <button class="mini-btn student-difficulty" data-difficulty="medium">Средний</button>
@@ -51,12 +47,30 @@
             </div>
           </div>
 
+          <div id="studentGeneratingStage" class="hidden">
+            <div class="spinner"></div>
+            <p class="hint">Генерация новых задач...</p>
+          </div>
+
           <div id="studentQuizStage" class="hidden">
             <div class="quiz-head">
               <span id="studentQuizProgress">Вопрос 1/10</span>
             </div>
             <p class="question" id="studentQuizQuestion"></p>
-            <div class="options" id="studentQuizOptions"></div>
+
+            <div id="studentMcqWrap">
+              <div class="options" id="studentQuizOptions"></div>
+            </div>
+
+            <div id="studentCodeWrap" class="hidden">
+              <textarea id="studentCodeInput" class="text-area" placeholder="Вставьте код для проверки"></textarea>
+              <button id="studentCodeCheckBtn" class="secondary-btn">Проверить код</button>
+              <div id="studentSuggestedCodeWrap" class="hidden">
+                <p class="panel-label">Рекомендуемый код</p>
+                <pre id="studentSuggestedCode" class="code-box"></pre>
+              </div>
+            </div>
+
             <div class="feedback hidden" id="studentQuizFeedback"></div>
             <button class="secondary-btn hidden" id="studentShowSolutionBtn">Показать решение</button>
             <div class="admin-row">
@@ -116,8 +130,12 @@
             </div>
 
             <div class="admin-block">
-              <h3>Генерация заданий</h3>
-              <button id="adminGenerateDayBtn" class="primary-btn">Сгенерировать задания на сутки</button>
+              <h3>Генерация заданий (админ)</h3>
+              <div class="admin-row">
+                <button class="mini-btn admin-generate-diff" data-difficulty="low">Сгенерировать низкий</button>
+                <button class="mini-btn admin-generate-diff" data-difficulty="medium">Сгенерировать средний</button>
+                <button class="mini-btn admin-generate-diff" data-difficulty="high">Сгенерировать высокий</button>
+              </div>
               <p id="adminGenerateDayStatus" class="hint"></p>
             </div>
 
@@ -130,25 +148,12 @@
               </div>
               <div id="adminPackViewWrap" class="admin-list"></div>
             </div>
-
-            <div class="admin-block">
-              <h3>Режим генерации</h3>
-              <select id="adminGenerationMode" class="text-input">
-                <option value="manual">Вручную</option>
-                <option value="auto">Автоматический</option>
-              </select>
-              <div class="admin-row">
-                <input id="adminGenerateHour" type="number" min="0" max="23" class="text-input" placeholder="Часы" />
-                <input id="adminGenerateMinute" type="number" min="0" max="59" class="text-input" placeholder="Минуты" />
-              </div>
-              <button id="adminSaveScheduleBtn" class="mini-btn">Сохранить режим</button>
-            </div>
           </div>
         </div>
 
         <p class="hint">Интерфейс: темно-синий Mini App.</p>
       </section>
     </main>
-    <script src="./app.js?v=20260308-2"></script>
+    <script src="./app.js?v=20260308-3"></script>
   </body>
 </html>

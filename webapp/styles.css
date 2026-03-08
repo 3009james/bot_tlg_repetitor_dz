@@ -233,6 +233,13 @@ h1 {
   flex-wrap: wrap;
 }
 
+.admin-row .primary-btn,
+.admin-row .secondary-btn,
+.admin-row .mini-btn {
+  width: auto;
+  flex: 1 1 120px;
+}
+
 .mini-btn {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -240,4 +247,31 @@ h1 {
   color: var(--text);
   padding: 8px 10px;
   cursor: pointer;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(159, 178, 217, 0.35);
+  border-top-color: #69a1ff;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+  margin: 8px 0;
+}
+
+.code-box {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(7, 20, 46, 0.95);
+  color: #cfe0ff;
+  padding: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

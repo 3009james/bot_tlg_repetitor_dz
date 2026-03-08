@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone, timedelta
 from typing import Any
 from urllib.parse import parse_qsl
 from zoneinfo import ZoneInfo
@@ -17,7 +17,7 @@ from src.bot.services.notebook_ingest import build_material_digest
 from src.bot.services.quiz_service import QuizService
 from src.bot.services.routerai_client import RouterAIClient
 from src.core.config import get_settings
-from src.db.models import Difficulty, GenerationMode, RequestStatus, UserRole
+from src.db.models import Difficulty, RequestStatus, UserRole, QuestionType
 from src.db.repo import BotRepo
 from src.db.session import create_db, create_engine_and_factory, session_scope
 
@@ -35,10 +35,8 @@ class LessonTypeStudentsPayload(BaseModel):
     student_ids: list[int] = Field(default_factory=list)
 
 
-class LessonTypeSchedulePayload(BaseModel):
-    mode: str = "manual"
-    hour: int = 0
-    minute: int = 0
+class DifficultyPayload(BaseModel):
+    difficulty: str
 
 
 class StartTestPayload(BaseModel):
@@ -51,6 +49,12 @@ class AnswerAtPositionPayload(BaseModel):
     quiz_id: int
     position: int
     selected_index: int
+
+
+class CodeCheckPayload(BaseModel):
+    quiz_id: int
+    position: int
+    code: str
 
 
 app = FastAPI(title="Tutor Bot Mini App API", version="3.0.0")
@@ -144,6 +148,20 @@ def _parse_difficulty(raw: str) -> Difficulty:
     if not difficulty:
         raise HTTPException(status_code=400, detail="Invalid difficulty")
     return difficulty
+
+
+def _now_msk() -> datetime:
+    return datetime.now(ZoneInfo("Europe/Moscow"))
+
+
+def _next_generation_at(last_generated_at: datetime | None) -> datetime | None:
+    if not last_generated_at:
+        return None
+    if last_generated_at.tzinfo is None:
+        last_generated_at = last_generated_at.replace(tzinfo=timezone.utc)
+    msk_dt = last_generated_at.astimezone(ZoneInfo("Europe/Moscow"))
+    next_day = msk_dt.date() + timedelta(days=1)
+    return datetime.combine(next_day, time(7, 0), tzinfo=ZoneInfo("Europe/Moscow"))
 
 
 @app.on_event("startup")
@@ -348,9 +366,6 @@ async def admin_lesson_types(x_telegram_init_data: str | None = Header(default=N
                     "id": row.id,
                     "name": row.name,
                     "slug": row.slug,
-                    "generation_mode": row.generation_mode.value,
-                    "generate_hour": row.generate_hour,
-                    "generate_minute": row.generate_minute,
                     "students_count": len(students),
                     "topics_count": len(topics),
                     "materials_count": len(materials),
@@ -387,9 +402,6 @@ async def admin_lesson_type_details(lesson_type_id: int, x_telegram_init_data: s
         "id": lesson_type.id,
         "name": lesson_type.name,
         "slug": lesson_type.slug,
-        "generation_mode": lesson_type.generation_mode.value,
-        "generate_hour": lesson_type.generate_hour,
-        "generate_minute": lesson_type.generate_minute,
         "students": [
             {"id": s.id, "full_name": s.full_name, "telegram_id": s.telegram_id, "subject": s.subject} for s in students
         ],
@@ -536,41 +548,14 @@ async def admin_set_lesson_type_students(
     return {"lesson_type_id": lesson_type_id, "student_ids": updated}
 
 
-@app.post("/api/admin/lesson-types/{lesson_type_id}/schedule")
-async def admin_set_lesson_type_schedule(
-    lesson_type_id: int,
-    payload: LessonTypeSchedulePayload,
-    x_telegram_init_data: str | None = Header(default=None),
-) -> dict[str, Any]:
-    await _require_admin(x_telegram_init_data)
-    mode_raw = payload.mode.strip().lower()
-    if mode_raw not in {"manual", "auto"}:
-        raise HTTPException(status_code=400, detail="Invalid mode")
-    mode = GenerationMode.AUTO if mode_raw == "auto" else GenerationMode.MANUAL
-    async with session_scope(app.state.session_factory) as session:
-        repo = BotRepo(session)
-        updated = await repo.set_lesson_type_schedule(
-            lesson_type_id=lesson_type_id,
-            mode=mode,
-            generate_hour=payload.hour,
-            generate_minute=payload.minute,
-        )
-        if not updated:
-            raise HTTPException(status_code=404, detail="Lesson type not found")
-    return {
-        "lesson_type_id": lesson_type_id,
-        "mode": mode.value,
-        "hour": updated.generate_hour,
-        "minute": updated.generate_minute,
-    }
-
-
 @app.post("/api/admin/lesson-types/{lesson_type_id}/generate")
 async def admin_generate_for_lesson_type(
     lesson_type_id: int,
+    payload: DifficultyPayload,
     x_telegram_init_data: str | None = Header(default=None),
 ) -> dict[str, Any]:
     await _require_admin(x_telegram_init_data)
+    difficulty = _parse_difficulty(payload.difficulty)
     settings = app.state.settings
     today = datetime.now(ZoneInfo(settings.timezone)).date()
     async with session_scope(app.state.session_factory) as session:
@@ -583,8 +568,15 @@ async def admin_generate_for_lesson_type(
             lesson_type=lesson_type,
             quiz_date=today,
             force_regenerate=True,
+            difficulties=[difficulty],
         )
-    return {"status": "ok", "lesson_type_id": lesson_type_id, "date": today.isoformat(), "students_count": students_count}
+    return {
+        "status": "ok",
+        "lesson_type_id": lesson_type_id,
+        "date": today.isoformat(),
+        "students_count": students_count,
+        "difficulty": difficulty.value,
+    }
 
 
 @app.get("/api/admin/lesson-types/{lesson_type_id}/daily-pack")
@@ -622,25 +614,26 @@ async def admin_daily_pack(
 @app.get("/api/student/dashboard")
 async def student_dashboard(x_telegram_init_data: str | None = Header(default=None)) -> dict[str, Any]:
     student = await _require_student(x_telegram_init_data)
-    today = datetime.now(ZoneInfo(app.state.settings.timezone)).date()
+    now_msk = _now_msk()
     async with session_scope(app.state.session_factory) as session:
         repo = BotRepo(session)
         lesson_types = await repo.get_student_lesson_types(student["id"])
         items = []
         for row in lesson_types:
-            latest_generated_at = None
-            for diff in (Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD):
-                pack = await repo.get_lesson_type_daily_pack(row.id, today, diff)
-                if not pack or not pack.generated_at:
-                    continue
-                if latest_generated_at is None or pack.generated_at > latest_generated_at:
-                    latest_generated_at = pack.generated_at
+            latest_generated_at = await repo.get_lesson_type_latest_generated_at_for_student(student["id"], row.id)
+            generation_state = await repo.get_lesson_type_student_generation_state(row.id, student["id"])
+            next_allowed_at = _next_generation_at(
+                generation_state.last_generated_at if generation_state else None
+            )
+            can_generate_now = (next_allowed_at is None) or (now_msk >= next_allowed_at)
             items.append(
                 {
                     "id": row.id,
                     "name": row.name,
                     "slug": row.slug,
                     "updated_at": latest_generated_at.isoformat() if latest_generated_at else None,
+                    "can_generate_now": bool(can_generate_now),
+                    "next_generation_at": next_allowed_at.isoformat() if next_allowed_at else None,
                 }
             )
     return {
@@ -657,7 +650,6 @@ async def student_dashboard(x_telegram_init_data: str | None = Header(default=No
 async def student_start_test(payload: StartTestPayload, x_telegram_init_data: str | None = Header(default=None)) -> dict[str, Any]:
     student = await _require_student(x_telegram_init_data)
     difficulty = _parse_difficulty(payload.difficulty)
-    today = datetime.now(ZoneInfo(app.state.settings.timezone)).date()
 
     async with session_scope(app.state.session_factory) as session:
         repo = BotRepo(session)
@@ -667,16 +659,9 @@ async def student_start_test(payload: StartTestPayload, x_telegram_init_data: st
         assigned_types = await repo.get_student_lesson_types(student["id"])
         if payload.lesson_type_id not in {x.id for x in assigned_types}:
             raise HTTPException(status_code=403, detail="You are not assigned to this lesson type")
-
-        await app.state.quiz_service.ensure_lesson_type_daily_quizzes(
-            repo=repo,
-            lesson_type=lesson_type,
-            quiz_date=today,
-            force_regenerate=False,
-        )
-        quiz = await repo.get_quiz(student["id"], today, difficulty)
+        quiz = await repo.get_latest_quiz(student["id"], lesson_type.id, difficulty)
         if not quiz:
-            raise HTTPException(status_code=404, detail="Quiz is not available yet")
+            raise HTTPException(status_code=404, detail="No tasks yet. Generate new tasks first.")
         if payload.restart:
             await repo.reset_progress(quiz.id, student["id"])
         questions = await repo.list_quiz_questions(quiz.id)
@@ -689,7 +674,68 @@ async def student_start_test(payload: StartTestPayload, x_telegram_init_data: st
             {
                 "position": q.position,
                 "question": q.question_text,
+                "type": q.question_type.value if q.question_type else QuestionType.MCQ.value,
                 "options": json.loads(q.options_json),
+                "meta": json.loads(q.meta_json) if q.meta_json else {},
+            }
+            for q in questions
+        ],
+    }
+
+
+@app.post("/api/student/lesson-types/{lesson_type_id}/generate")
+async def student_generate_new_tasks(
+    lesson_type_id: int,
+    payload: DifficultyPayload,
+    x_telegram_init_data: str | None = Header(default=None),
+) -> dict[str, Any]:
+    student = await _require_student(x_telegram_init_data)
+    difficulty = _parse_difficulty(payload.difficulty)
+    now_msk = _now_msk()
+    quiz_date = now_msk.date()
+
+    async with session_scope(app.state.session_factory) as session:
+        repo = BotRepo(session)
+        lesson_type = await repo.get_lesson_type(lesson_type_id)
+        if not lesson_type:
+            raise HTTPException(status_code=404, detail="Lesson type not found")
+        assigned_types = await repo.get_student_lesson_types(student["id"])
+        if lesson_type_id not in {x.id for x in assigned_types}:
+            raise HTTPException(status_code=403, detail="You are not assigned to this lesson type")
+
+        generation_state = await repo.get_lesson_type_student_generation_state(lesson_type_id, student["id"])
+        next_allowed_at = _next_generation_at(generation_state.last_generated_at if generation_state else None)
+        if next_allowed_at and now_msk < next_allowed_at:
+            raise HTTPException(
+                status_code=403,
+                detail=f"New tasks will be available after {next_allowed_at.strftime('%d.%m.%Y %H:%M')} (MSK)",
+            )
+
+        student_row = await repo.get_user_by_id(student["id"])
+        if not student_row:
+            raise HTTPException(status_code=404, detail="Student not found")
+        quiz = await app.state.quiz_service.generate_student_lesson_type_quiz(
+            repo=repo,
+            student=student_row,
+            lesson_type=lesson_type,
+            quiz_date=quiz_date,
+            difficulty=difficulty,
+        )
+        questions = await repo.list_quiz_questions(quiz.id)
+
+    return {
+        "status": "ok",
+        "quiz_id": quiz.id,
+        "lesson_type_id": lesson_type.id,
+        "difficulty": difficulty.value,
+        "generated_at": now_msk.isoformat(),
+        "questions": [
+            {
+                "position": q.position,
+                "question": q.question_text,
+                "type": q.question_type.value if q.question_type else QuestionType.MCQ.value,
+                "options": json.loads(q.options_json),
+                "meta": json.loads(q.meta_json) if q.meta_json else {},
             }
             for q in questions
         ],
@@ -721,6 +767,9 @@ async def student_get_quiz(quiz_id: int, x_telegram_init_data: str | None = Head
         answers_by_position[str(q.position)] = {
             "selected_index": log.selected_option_index,
             "is_correct": bool(log.is_correct),
+            "code_text": log.code_text or "",
+            "feedback_text": log.feedback_text or "",
+            "suggested_code": log.suggested_code or "",
             "answered_at": log.answered_at.isoformat() if log.answered_at else None,
         }
 
@@ -731,7 +780,9 @@ async def student_get_quiz(quiz_id: int, x_telegram_init_data: str | None = Head
             {
                 "position": q.position,
                 "question": q.question_text,
+                "type": q.question_type.value if q.question_type else QuestionType.MCQ.value,
                 "options": json.loads(q.options_json),
+                "meta": json.loads(q.meta_json) if q.meta_json else {},
                 "solution": q.explanation or "",
             }
             for q in questions
@@ -751,6 +802,8 @@ async def student_answer_test(payload: AnswerAtPositionPayload, x_telegram_init_
         question = await repo.get_quiz_question(payload.quiz_id, payload.position)
         if not question:
             raise HTTPException(status_code=404, detail="Question not found")
+        if question.question_type == QuestionType.CODE:
+            raise HTTPException(status_code=400, detail="Use code-check endpoint for practical code tasks")
         options = json.loads(question.options_json)
         if payload.selected_index < 0 or payload.selected_index >= len(options):
             raise HTTPException(status_code=400, detail="Invalid option index")
@@ -759,6 +812,52 @@ async def student_answer_test(payload: AnswerAtPositionPayload, x_telegram_init_
     return {
         "is_correct": correct,
         "correct_option_index": question.correct_option_index,
+        "solution": question.explanation or "",
+    }
+
+
+@app.post("/api/student/tests/code-check")
+async def student_code_check(
+    payload: CodeCheckPayload,
+    x_telegram_init_data: str | None = Header(default=None),
+) -> dict[str, Any]:
+    student = await _require_student(x_telegram_init_data)
+    async with session_scope(app.state.session_factory) as session:
+        repo = BotRepo(session)
+        quiz = await repo.get_quiz_by_id(payload.quiz_id)
+        if not quiz or quiz.student_id != student["id"]:
+            raise HTTPException(status_code=403, detail="No access to quiz")
+        question = await repo.get_quiz_question(payload.quiz_id, payload.position)
+        if not question:
+            raise HTTPException(status_code=404, detail="Question not found")
+        if question.question_type != QuestionType.CODE:
+            raise HTTPException(status_code=400, detail="Question is not practical code task")
+
+        meta = json.loads(question.meta_json) if question.meta_json else {}
+        language = str(meta.get("language", "python"))
+        reference_solution = str(meta.get("reference_solution", "")).strip()
+        review = await app.state.llm_client.evaluate_code_solution(
+            question_text=question.question_text,
+            student_code=payload.code,
+            reference_solution=reference_solution,
+            language=language,
+            difficulty=quiz.difficulty.value,
+        )
+        await repo.log_answer(
+            payload.quiz_id,
+            question.id,
+            student["id"],
+            selected_index=-1,
+            is_correct=bool(review.get("is_correct", False)),
+            code_text=payload.code,
+            feedback_text=str(review.get("feedback", "")),
+            suggested_code=str(review.get("suggested_code", "")),
+        )
+
+    return {
+        "is_correct": bool(review.get("is_correct", False)),
+        "feedback": str(review.get("feedback", "")),
+        "suggested_code": str(review.get("suggested_code", "")),
         "solution": question.explanation or "",
     }
 

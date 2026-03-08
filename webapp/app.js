@@ -12,46 +12,45 @@
     lessonTypes: [],
     students: [],
     selectedLessonTypeId: null,
-    student: {
-      lessonTypeId: null,
-      difficulty: null,
-      quizId: null,
-      questions: [],
-      currentIndex: 0,
-      answerMeta: {},
-    },
+    studentDashboard: [],
+    studentActionMode: "start",
+    student: { lessonTypeId: null, difficulty: null, quizId: null, questions: [], currentIndex: 0, answerMeta: {} },
   };
 
   const title = document.getElementById("title");
   const subtitle = document.getElementById("subtitle");
   const errorText = document.getElementById("errorText");
-
   const pendingView = document.getElementById("pendingView");
   const pendingSubject = document.getElementById("pendingSubject");
   const pendingMessage = document.getElementById("pendingMessage");
   const pendingSendBtn = document.getElementById("pendingSendBtn");
   const pendingStatus = document.getElementById("pendingStatus");
-
   const studentView = document.getElementById("studentView");
   const studentUpdateInfo = document.getElementById("studentUpdateInfo");
+  const studentGenerateInfo = document.getElementById("studentGenerateInfo");
   const studentLessonTypeSelect = document.getElementById("studentLessonTypeSelect");
   const studentBeginBtn = document.getElementById("studentBeginBtn");
+  const studentGenerateBtn = document.getElementById("studentGenerateBtn");
   const studentStartStage = document.getElementById("studentStartStage");
-  const studentModeStage = document.getElementById("studentModeStage");
-  const studentModeTestBtn = document.getElementById("studentModeTestBtn");
-  const studentModeManualBtn = document.getElementById("studentModeManualBtn");
   const studentDifficultyStage = document.getElementById("studentDifficultyStage");
+  const studentDifficultyTitle = document.getElementById("studentDifficultyTitle");
+  const studentGeneratingStage = document.getElementById("studentGeneratingStage");
   const studentQuizStage = document.getElementById("studentQuizStage");
   const studentQuizProgress = document.getElementById("studentQuizProgress");
   const studentQuizQuestion = document.getElementById("studentQuizQuestion");
+  const studentMcqWrap = document.getElementById("studentMcqWrap");
   const studentQuizOptions = document.getElementById("studentQuizOptions");
+  const studentCodeWrap = document.getElementById("studentCodeWrap");
+  const studentCodeInput = document.getElementById("studentCodeInput");
+  const studentCodeCheckBtn = document.getElementById("studentCodeCheckBtn");
+  const studentSuggestedCodeWrap = document.getElementById("studentSuggestedCodeWrap");
+  const studentSuggestedCode = document.getElementById("studentSuggestedCode");
   const studentQuizFeedback = document.getElementById("studentQuizFeedback");
   const studentShowSolutionBtn = document.getElementById("studentShowSolutionBtn");
   const studentPrevQuestionBtn = document.getElementById("studentPrevQuestionBtn");
   const studentNextQuestionBtn = document.getElementById("studentNextQuestionBtn");
   const studentRestartBtn = document.getElementById("studentRestartBtn");
   const studentResultInfo = document.getElementById("studentResultInfo");
-
   const adminView = document.getElementById("adminView");
   const adminLessonTypesBtn = document.getElementById("adminLessonTypesBtn");
   const adminRequestsWrap = document.getElementById("adminRequestsWrap");
@@ -71,96 +70,95 @@
   const adminStudentsAssignWrap = document.getElementById("adminStudentsAssignWrap");
   const adminSaveStudentsAssignBtn = document.getElementById("adminSaveStudentsAssignBtn");
   const adminSaveTopicsBtn = document.getElementById("adminSaveTopicsBtn");
-  const adminGenerateDayBtn = document.getElementById("adminGenerateDayBtn");
   const adminGenerateDayStatus = document.getElementById("adminGenerateDayStatus");
   const adminPackViewWrap = document.getElementById("adminPackViewWrap");
-  const adminGenerationMode = document.getElementById("adminGenerationMode");
-  const adminGenerateHour = document.getElementById("adminGenerateHour");
-  const adminGenerateMinute = document.getElementById("adminGenerateMinute");
-  const adminSaveScheduleBtn = document.getElementById("adminSaveScheduleBtn");
 
-  function setHidden(el, hidden) {
-    if (!el) return;
-    if (hidden) el.classList.add("hidden");
-    else el.classList.remove("hidden");
-  }
-
-  function showError(message) {
-    if (!errorText) return;
-    if (!message) {
+  const setHidden = (el, hidden) => (hidden ? el.classList.add("hidden") : el.classList.remove("hidden"));
+  const showError = (msg) => {
+    if (!msg) {
       errorText.classList.add("hidden");
       errorText.textContent = "";
       return;
     }
     errorText.classList.remove("hidden");
-    errorText.textContent = String(message);
-  }
-
-  function notify(message) {
-    const text = String(message || "");
-    if (!text) return;
-    if (tg && typeof tg.showAlert === "function") {
-      tg.showAlert(text);
-      return;
-    }
-    window.alert(text);
-  }
+    errorText.textContent = String(msg);
+  };
+  const notify = (msg) => {
+    if (!msg) return;
+    if (tg && tg.showAlert) return tg.showAlert(String(msg));
+    window.alert(String(msg));
+  };
 
   async function api(path, options = {}) {
-    if (!tg || !tg.initData) {
-      throw new Error("Откройте приложение через Telegram.");
-    }
-    const headers = {
-      "X-Telegram-Init-Data": tg.initData,
-      ...(options.headers || {}),
-    };
+    if (!tg || !tg.initData) throw new Error("Откройте приложение через Telegram.");
+    const headers = { "X-Telegram-Init-Data": tg.initData, ...(options.headers || {}) };
     const body = options.body;
-    if (!(body instanceof FormData)) {
-      headers["Content-Type"] = headers["Content-Type"] || "application/json";
-    }
-    const response = await fetch(path, {
-      method: options.method || "GET",
-      headers,
-      body,
-    });
+    if (!(body instanceof FormData)) headers["Content-Type"] = headers["Content-Type"] || "application/json";
+    const response = await fetch(path, { method: options.method || "GET", headers, body });
     let data = {};
-    let rawText = "";
+    let raw = "";
     try {
       data = await response.json();
-    } catch (_err) {
+    } catch (_e) {
       try {
-        rawText = await response.text();
-      } catch (_err2) {
-        rawText = "";
-      }
+        raw = await response.text();
+      } catch (_e2) {}
     }
-    if (!response.ok) {
-      const fallback = rawText ? rawText.slice(0, 180) : "Ошибка API";
-      throw new Error(data.detail || "HTTP " + response.status + ": " + fallback);
-    }
+    if (!response.ok) throw new Error(data.detail || "HTTP " + response.status + ": " + (raw ? raw.slice(0, 180) : "Ошибка API"));
     return data;
   }
 
   function showRoleView(role) {
-    setHidden(pendingView, true);
-    setHidden(studentView, true);
-    setHidden(adminView, true);
-    if (role === "admin") {
-      setHidden(adminView, false);
-      return;
-    }
-    if (role === "student") {
-      setHidden(studentView, false);
-      return;
-    }
+    [pendingView, studentView, adminView].forEach((el) => setHidden(el, true));
+    if (role === "admin") return setHidden(adminView, false);
+    if (role === "student") return setHidden(studentView, false);
     setHidden(pendingView, false);
+  }
+  function setStudentStage(stage) {
+    setHidden(studentStartStage, stage !== "start");
+    setHidden(studentDifficultyStage, stage !== "difficulty");
+    setHidden(studentGeneratingStage, stage !== "generating");
+    setHidden(studentQuizStage, stage !== "quiz");
+  }
+  function currentStudentLesson() {
+    const id = Number(studentLessonTypeSelect.value || 0);
+    return state.studentDashboard.find((x) => x.id === id) || null;
+  }
+
+  function renderStudentLessonInfo() {
+    const lesson = currentStudentLesson();
+    if (!lesson) {
+      studentUpdateInfo.textContent = "Вы еще не закреплены ни за одним видом занятия.";
+      studentGenerateInfo.textContent = "";
+      return;
+    }
+    const updated = lesson.updated_at ? new Date(lesson.updated_at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" }) : null;
+    studentUpdateInfo.textContent = updated ? "Последние задания обновлены: " + updated + " (МСК)" : "Заданий пока нет. Можно создать новые.";
+    if (lesson.can_generate_now) studentGenerateInfo.textContent = "Новые задачи доступны.";
+    else {
+      const nextAt = lesson.next_generation_at
+        ? new Date(lesson.next_generation_at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })
+        : "";
+      studentGenerateInfo.textContent = "Новые задачи будут доступны после: " + nextAt + " (МСК)";
+    }
+  }
+
+  async function loadStudentDashboard() {
+    const dashboard = await api("/api/student/dashboard");
+    state.studentDashboard = dashboard.lesson_types || [];
+    studentLessonTypeSelect.innerHTML = "";
+    state.studentDashboard.forEach((x) => {
+      const opt = document.createElement("option");
+      opt.value = x.id;
+      opt.textContent = x.name;
+      studentLessonTypeSelect.appendChild(opt);
+    });
+    renderStudentLessonInfo();
   }
 
   async function loadPendingStatus() {
     const status = await api("/api/access/status");
-    pendingStatus.textContent = status.has_pending_request
-      ? "Заявка уже отправлена и ожидает подтверждения."
-      : "Заявка пока не отправлена.";
+    pendingStatus.textContent = status.has_pending_request ? "Заявка уже отправлена и ожидает подтверждения." : "Заявка пока не отправлена.";
   }
 
   function renderRequests(items) {
@@ -177,41 +175,31 @@
         req.id +
         " " +
         req.full_name +
-        "</p>" +
-        "<p>@" +
+        "</p><p>@" +
         (req.username || "-") +
         " | tg_id=" +
         req.telegram_id +
-        "</p>" +
-        "<p>Предмет: " +
+        "</p><p>Предмет: " +
         (req.subject || "-") +
-        "</p>" +
-        "<p>Комментарий: " +
+        "</p><p>Комментарий: " +
         (req.message || "-") +
         "</p>";
       const row = document.createElement("div");
       row.className = "admin-row";
-      const approve = document.createElement("button");
-      approve.className = "mini-btn";
-      approve.textContent = "Подтвердить";
-      approve.addEventListener("click", async () => {
-        await api("/api/admin/requests/" + req.id + "/approve", { method: "POST" });
-        await loadAdminRequests();
+      [["Подтвердить", "approve"], ["Отклонить", "reject"]].forEach(([label, action]) => {
+        const b = document.createElement("button");
+        b.className = "mini-btn";
+        b.textContent = label;
+        b.addEventListener("click", async () => {
+          await api("/api/admin/requests/" + req.id + "/" + action, { method: "POST" });
+          await loadAdminRequests();
+        });
+        row.appendChild(b);
       });
-      const reject = document.createElement("button");
-      reject.className = "mini-btn";
-      reject.textContent = "Отклонить";
-      reject.addEventListener("click", async () => {
-        await api("/api/admin/requests/" + req.id + "/reject", { method: "POST" });
-        await loadAdminRequests();
-      });
-      row.appendChild(approve);
-      row.appendChild(reject);
       item.appendChild(row);
       adminRequestsWrap.appendChild(item);
     });
   }
-
   async function loadAdminRequests() {
     const data = await api("/api/admin/requests");
     renderRequests(data.items || []);
@@ -225,21 +213,13 @@
       item.innerHTML =
         '<p class="admin-item-title">' +
         row.name +
-        "</p>" +
-        "<p>Материалы: " +
+        "</p><p>Материалы: " +
         row.materials_count +
         " | Темы: " +
         row.topics_count +
         " | Ученики: " +
         row.students_count +
-        "</p>" +
-        "<p>Режим: " +
-        row.generation_mode +
-        " (" +
-        String(row.generate_hour).padStart(2, "0") +
-        ":" +
-        String(row.generate_minute).padStart(2, "0") +
-        ")</p>";
+        "</p>";
       const openBtn = document.createElement("button");
       openBtn.className = "mini-btn";
       openBtn.textContent = "Открыть";
@@ -251,28 +231,27 @@
       adminLessonTypesWrap.appendChild(item);
     });
   }
-
   async function loadLessonTypes() {
     const data = await api("/api/admin/lesson-types");
     state.lessonTypes = data.items || [];
     renderLessonTypes(state.lessonTypes);
   }
 
-  function renderStudentsAssign(assignedStudents) {
-    const assignedSet = new Set((assignedStudents || []).map((x) => x.id));
+  function renderStudentsAssign(assigned) {
+    const assignedSet = new Set((assigned || []).map((x) => x.id));
     adminStudentsAssignWrap.innerHTML = "";
-    state.students.forEach((student) => {
+    state.students.forEach((s) => {
       const row = document.createElement("label");
       row.className = "admin-item";
       row.innerHTML =
         '<input type="checkbox" class="assign-student-checkbox" value="' +
-        student.id +
+        s.id +
         '"' +
-        (assignedSet.has(student.id) ? " checked" : "") +
+        (assignedSet.has(s.id) ? " checked" : "") +
         "/>" +
-        student.full_name +
+        s.full_name +
         " (tg_id=" +
-        student.telegram_id +
+        s.telegram_id +
         ")";
       adminStudentsAssignWrap.appendChild(row);
     });
@@ -280,10 +259,7 @@
 
   function renderMaterials(items) {
     adminMaterialsWrap.innerHTML = "";
-    if (!items || !items.length) {
-      adminMaterialsWrap.innerHTML = '<div class="admin-item">Материалов пока нет.</div>';
-      return;
-    }
+    if (!items || !items.length) return (adminMaterialsWrap.innerHTML = '<div class="admin-item">Материалов пока нет.</div>');
     items.forEach((m) => {
       const item = document.createElement("div");
       item.className = "admin-item";
@@ -291,55 +267,44 @@
       const topics = Array.isArray(m.topics) && m.topics.length ? m.topics.join(", ") : "темы не выделены";
       item.innerHTML =
         '<p class="admin-item-title">' +
-        (m.title || m.source_filename || ("Материал #" + m.id)) +
-        "</p>" +
-        "<p>Файл: " +
+        (m.title || m.source_filename || "Материал #" + m.id) +
+        "</p><p>Файл: " +
         (m.source_filename || "-") +
-        "</p>" +
-        "<p>Темы: " +
+        "</p><p>Темы: " +
         topics +
-        "</p>" +
-        "<p>Добавлен: " +
+        "</p><p>Добавлен: " +
         created +
         " | tokens~" +
         Number(m.tokens_estimate || 0) +
         "</p>";
-      const delBtn = document.createElement("button");
-      delBtn.className = "mini-btn";
-      delBtn.textContent = "Удалить";
-      delBtn.dataset.materialId = String(m.id);
-      delBtn.dataset.action = "delete-material";
-      item.appendChild(delBtn);
+      const del = document.createElement("button");
+      del.className = "mini-btn";
+      del.textContent = "Удалить";
+      del.dataset.action = "delete-material";
+      del.dataset.materialId = String(m.id);
+      item.appendChild(del);
       adminMaterialsWrap.appendChild(item);
     });
   }
 
   function renderTopicChecklist(availableTopics, selectedTopics) {
-    if (!adminTopicsChecklist) return;
-    const available = Array.isArray(availableTopics) ? availableTopics : [];
     const selected = new Set(Array.isArray(selectedTopics) ? selectedTopics : []);
     const merged = [];
     const seen = new Set();
-
-    available.forEach((topic) => {
-      const t = String(topic || "").trim();
-      if (!t || seen.has(t)) return;
-      seen.add(t);
-      merged.push(t);
+    (Array.isArray(availableTopics) ? availableTopics : []).forEach((t) => {
+      const x = String(t || "").trim();
+      if (!x || seen.has(x)) return;
+      seen.add(x);
+      merged.push(x);
     });
-    selected.forEach((topic) => {
-      const t = String(topic || "").trim();
-      if (!t || seen.has(t)) return;
-      seen.add(t);
-      merged.push(t);
+    selected.forEach((t) => {
+      const x = String(t || "").trim();
+      if (!x || seen.has(x)) return;
+      seen.add(x);
+      merged.push(x);
     });
-
     adminTopicsChecklist.innerHTML = "";
-    if (!merged.length) {
-      adminTopicsChecklist.innerHTML = '<div class="admin-item">Темы пока не обнаружены, сначала загрузите материалы.</div>';
-      return;
-    }
-
+    if (!merged.length) return (adminTopicsChecklist.innerHTML = '<div class="admin-item">Темы пока не обнаружены, сначала загрузите материалы.</div>');
     merged.forEach((topic) => {
       const row = document.createElement("label");
       row.className = "admin-item";
@@ -354,187 +319,169 @@
     });
   }
 
-  async function loadLessonTypePanel(lessonTypeId) {
-    const details = await api("/api/admin/lesson-types/" + lessonTypeId);
+  async function loadLessonTypePanel(id) {
+    const details = await api("/api/admin/lesson-types/" + id);
     const students = await api("/api/admin/students");
     state.students = students.items || [];
-
     adminLessonTypeTitle.textContent = "Вид занятия: " + details.name;
     adminAvailableTopics.textContent = details.available_topics.length
       ? "Найдено тем: " + details.available_topics.length
       : "Темы пока не обнаружены, сначала загрузите материалы.";
     renderTopicChecklist(details.available_topics || [], details.selected_topics || []);
-    adminGenerationMode.value = details.generation_mode || "manual";
-    adminGenerateHour.value = details.generate_hour;
-    adminGenerateMinute.value = details.generate_minute;
     renderStudentsAssign(details.students || []);
     renderMaterials(details.materials || []);
     adminPackViewWrap.innerHTML = "";
     adminGenerateDayStatus.textContent = "";
-
     setHidden(adminLessonTypesList, true);
     setHidden(adminLessonTypePanel, false);
   }
 
-  async function deleteLessonTypeMaterial(materialId) {
-    if (!state.selectedLessonTypeId) return;
-    await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/materials/" + materialId, {
-      method: "DELETE",
-    });
-    await loadLessonTypePanel(state.selectedLessonTypeId);
-    adminLessonTypeUploadStatus.textContent = "Материал удален.";
-    notify("Материал удален");
-  }
-
   async function saveLessonTypeTopics() {
-    if (!state.selectedLessonTypeId) return;
-    const topics = Array.from(document.querySelectorAll(".topic-checkbox:checked"))
-      .map((el) => (el.value || "").trim())
-      .filter(Boolean);
-    await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/topics", {
-      method: "POST",
-      body: JSON.stringify({ topics }),
-    });
+    const topics = Array.from(document.querySelectorAll(".topic-checkbox:checked")).map((x) => String(x.value || "").trim()).filter(Boolean);
+    await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/topics", { method: "POST", body: JSON.stringify({ topics }) });
   }
-
   async function saveLessonTypeStudents() {
-    if (!state.selectedLessonTypeId) return;
-    const selected = Array.from(document.querySelectorAll(".assign-student-checkbox:checked")).map((el) =>
-      Number(el.value)
-    );
-    await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/students", {
-      method: "POST",
-      body: JSON.stringify({ student_ids: selected }),
-    });
-  }
-
-  async function saveLessonTypeSchedule() {
-    if (!state.selectedLessonTypeId) return;
-    await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/schedule", {
-      method: "POST",
-      body: JSON.stringify({
-        mode: adminGenerationMode.value,
-        hour: Number(adminGenerateHour.value || 0),
-        minute: Number(adminGenerateMinute.value || 0),
-      }),
-    });
+    const ids = Array.from(document.querySelectorAll(".assign-student-checkbox:checked")).map((x) => Number(x.value));
+    await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/students", { method: "POST", body: JSON.stringify({ student_ids: ids }) });
   }
 
   async function uploadLessonTypeMaterial() {
-    if (!state.selectedLessonTypeId) return;
     const file = adminLessonTypeFileInput.files && adminLessonTypeFileInput.files[0];
     if (!file) throw new Error("Выберите файл .txt, .docx или .pdf");
-    const lower = (file.name || "").toLowerCase();
-    if (!(lower.endsWith(".txt") || lower.endsWith(".docx") || lower.endsWith(".pdf"))) {
-      throw new Error("Поддерживаются только .txt, .docx, .pdf");
-    }
+    const lower = String(file.name || "").toLowerCase();
+    if (!(lower.endsWith(".txt") || lower.endsWith(".docx") || lower.endsWith(".pdf"))) throw new Error("Поддерживаются только .txt, .docx, .pdf");
     const form = new FormData();
     form.append("file", file);
     adminLessonTypeUploadBtn.disabled = true;
     adminLessonTypeUploadBtn.textContent = "Загрузка...";
-    const res = await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/materials/upload", {
-      method: "POST",
-      body: form,
-    });
+    const res = await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/materials/upload", { method: "POST", body: form });
     await loadLessonTypePanel(state.selectedLessonTypeId);
     const topics = Array.isArray(res.topics) ? res.topics : [];
-    const topicsText = topics.length ? " Темы: " + topics.join(", ") : "";
     const created = res.status !== "duplicate";
-    adminLessonTypeUploadStatus.textContent = (created ? "Материал загружен." : "Дубликат файла, повторная загрузка не нужна.") + topicsText;
+    adminLessonTypeUploadStatus.textContent = (created ? "Материал загружен." : "Дубликат файла, повторная загрузка не нужна.") + (topics.length ? " Темы: " + topics.join(", ") : "");
     adminLessonTypeFileInput.value = "";
-    notify(created ? "Материал загружен" : "Этот материал уже был загружен");
     adminLessonTypeUploadBtn.disabled = false;
     adminLessonTypeUploadBtn.textContent = "Загрузить материал";
+    notify(created ? "Материал загружен" : "Этот материал уже был загружен");
   }
 
-  async function generateLessonTypeDay() {
-    if (!state.selectedLessonTypeId) return;
-    adminGenerateDayBtn.disabled = true;
-    adminGenerateDayBtn.textContent = "Генерация...";
+  async function generateLessonTypeByDifficulty(difficulty, btn) {
+    const all = Array.from(document.querySelectorAll(".admin-generate-diff"));
+    all.forEach((b) => (b.disabled = true));
+    const old = btn.textContent;
+    btn.textContent = "Генерация...";
     adminGenerateDayStatus.textContent = "Генерация заданий запущена...";
     try {
-      const res = await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/generate", { method: "POST" });
-      adminGenerateDayStatus.textContent =
-        "Генерация завершена. Дата: " +
-        res.date +
-        ". Учеников: " +
-        res.students_count +
-        ". По 10 задач на каждую сложность.";
-    } catch (err) {
-      const reason = String((err && err.message) || err || "Неизвестная ошибка");
-      adminGenerateDayStatus.textContent = "Ошибка генерации: " + reason;
-      throw err;
+      const res = await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/generate", {
+        method: "POST",
+        body: JSON.stringify({ difficulty }),
+      });
+      adminGenerateDayStatus.textContent = "Генерация завершена. Сложность: " + res.difficulty + ". Учеников: " + res.students_count + ".";
     } finally {
-      adminGenerateDayBtn.disabled = false;
-      adminGenerateDayBtn.textContent = "Сгенерировать задания на сутки";
+      all.forEach((b) => (b.disabled = false));
+      btn.textContent = old;
     }
   }
 
   function renderPack(questions) {
     adminPackViewWrap.innerHTML = "";
-    questions.forEach((q, idx) => {
+    (questions || []).forEach((q, i) => {
       const item = document.createElement("div");
       item.className = "admin-item";
-      const options = (q.options || []).map((opt, i) => (i + 1) + ". " + opt).join("<br/>");
-      item.innerHTML =
-        "<p class='admin-item-title'>#" +
-        (idx + 1) +
-        " " +
-        q.question +
-        "</p>" +
-        "<p>" +
-        options +
-        "</p>" +
-        "<p><b>Правильный ответ:</b> " +
-        (Number(q.correct_index || 0) + 1) +
-        "</p>" +
-        "<p><b>Решение:</b> " +
-        (q.explanation || "-") +
-        "</p>";
+      if (q.type === "code") {
+        item.innerHTML = "<p class='admin-item-title'>#" + (i + 1) + " [Практика] " + q.question + "</p><p><b>Решение:</b> " + (q.explanation || "-") + "</p>";
+      } else {
+        const opts = (q.options || []).map((o, j) => j + 1 + ". " + o).join("<br/>");
+        item.innerHTML =
+          "<p class='admin-item-title'>#" +
+          (i + 1) +
+          " " +
+          q.question +
+          "</p><p>" +
+          opts +
+          "</p><p><b>Правильный ответ:</b> " +
+          (Number(q.correct_index || 0) + 1) +
+          "</p><p><b>Решение:</b> " +
+          (q.explanation || "-") +
+          "</p>";
+      }
       adminPackViewWrap.appendChild(item);
     });
   }
-
-  async function openPackByDifficulty(difficulty) {
-    if (!state.selectedLessonTypeId) return;
-    const res = await api(
-      "/api/admin/lesson-types/" + state.selectedLessonTypeId + "/daily-pack?difficulty=" + encodeURIComponent(difficulty)
-    );
+  async function openPackByDifficulty(d) {
+    const res = await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/daily-pack?difficulty=" + encodeURIComponent(d));
     renderPack(res.questions || []);
   }
 
-  function fillStudentLessonTypes(items) {
-    studentLessonTypeSelect.innerHTML = "";
-    items.forEach((x) => {
-      const option = document.createElement("option");
-      option.value = x.id;
-      option.textContent = x.name;
-      studentLessonTypeSelect.appendChild(option);
-    });
+  async function refreshStudentQuizData() {
+    if (!state.student.quizId) return;
+    const quiz = await api("/api/student/tests/" + state.student.quizId);
+    state.student.questions = quiz.questions || [];
+    state.student.answerMeta = {};
+    Object.keys(quiz.answers_by_position || {}).forEach((k) => (state.student.answerMeta[Number(k)] = quiz.answers_by_position[k]));
+    const result = await api("/api/student/tests/" + state.student.quizId + "/result");
+    studentResultInfo.textContent = "Прогресс: " + result.answered + "/" + result.total + ". Верно: " + result.correct + ".";
+  }
+  function showFeedback(text, ok) {
+    studentQuizFeedback.classList.remove("hidden");
+    studentQuizFeedback.className = ok ? "feedback feedback-ok" : "feedback feedback-bad";
+    studentQuizFeedback.textContent = text;
   }
 
-  async function loadStudentDashboard() {
-    const dashboard = await api("/api/student/dashboard");
-    const lessonTypes = dashboard.lesson_types || [];
-    if (!lessonTypes.length) {
-      studentUpdateInfo.textContent = "Вы еще не закреплены ни за одним видом занятия.";
-      studentLessonTypeSelect.innerHTML = "";
+  function renderStudentQuestion() {
+    if (!state.student.questions.length) return;
+    const q = state.student.questions[state.student.currentIndex];
+    studentQuizProgress.textContent = "Вопрос " + (state.student.currentIndex + 1) + "/" + state.student.questions.length;
+    studentQuizQuestion.textContent = q.question;
+    studentQuizOptions.innerHTML = "";
+    studentSuggestedCode.textContent = "";
+    setHidden(studentSuggestedCodeWrap, true);
+    studentQuizFeedback.classList.add("hidden");
+    studentShowSolutionBtn.classList.add("hidden");
+    const meta = state.student.answerMeta[q.position];
+    if (q.type === "code") {
+      setHidden(studentCodeWrap, false);
+      setHidden(studentMcqWrap, true);
+      studentCodeInput.value = meta && meta.code_text ? String(meta.code_text) : "";
+      if (meta && meta.feedback_text) showFeedback(String(meta.feedback_text), !!meta.is_correct);
+      if (meta && meta.suggested_code) {
+        studentSuggestedCode.textContent = String(meta.suggested_code);
+        setHidden(studentSuggestedCodeWrap, false);
+      }
+      studentShowSolutionBtn.classList.remove("hidden");
       return;
     }
-    fillStudentLessonTypes(lessonTypes);
-    const first = lessonTypes[0];
-    state.student.lessonTypeId = first.id;
-    const updateRaw = first.updated_at ? new Date(first.updated_at) : null;
-    studentUpdateInfo.textContent = updateRaw
-      ? "Занятия обновлены: " + updateRaw.toLocaleString("ru-RU", { timeZone: "Europe/Moscow" }) + " (МСК)"
-      : "Занятия пока не генерировались автоматически.";
-  }
-
-  function setStudentStage(stage) {
-    setHidden(studentStartStage, stage !== "start");
-    setHidden(studentModeStage, stage !== "mode");
-    setHidden(studentDifficultyStage, stage !== "difficulty");
-    setHidden(studentQuizStage, stage !== "quiz");
+    setHidden(studentCodeWrap, true);
+    setHidden(studentMcqWrap, false);
+    if (meta) {
+      showFeedback((meta.is_correct ? "Верно." : "Неверно.") + " Ответ: " + (Number(meta.selected_index) + 1) + ".", !!meta.is_correct);
+      studentShowSolutionBtn.classList.remove("hidden");
+    }
+    (q.options || []).forEach((opt, idx) => {
+      const b = document.createElement("button");
+      b.className = "option-btn";
+      b.textContent = opt;
+      b.addEventListener("click", async () => {
+        try {
+          showError("");
+          const res = await api("/api/student/tests/answer", {
+            method: "POST",
+            body: JSON.stringify({ quiz_id: state.student.quizId, position: q.position, selected_index: idx }),
+          });
+          state.student.answerMeta[q.position] = {
+            selected_index: idx,
+            is_correct: res.is_correct,
+            feedback_text: (res.is_correct ? "Верно." : "Неверно.") + " Правильный ответ: " + (Number(res.correct_option_index) + 1) + ".",
+          };
+          showFeedback(state.student.answerMeta[q.position].feedback_text, !!res.is_correct);
+          studentShowSolutionBtn.classList.remove("hidden");
+          await refreshStudentQuizData();
+        } catch (err) {
+          showError(err.message || err);
+        }
+      });
+      studentQuizOptions.appendChild(b);
+    });
   }
 
   async function startStudentTest(difficulty) {
@@ -542,11 +489,7 @@
     state.student.difficulty = difficulty;
     const res = await api("/api/student/tests/start", {
       method: "POST",
-      body: JSON.stringify({
-        lesson_type_id: state.student.lessonTypeId,
-        difficulty: difficulty,
-        restart: true,
-      }),
+      body: JSON.stringify({ lesson_type_id: state.student.lessonTypeId, difficulty, restart: true }),
     });
     state.student.quizId = res.quiz_id;
     state.student.questions = res.questions || [];
@@ -556,85 +499,112 @@
     await refreshStudentQuizData();
     renderStudentQuestion();
   }
-
-  async function refreshStudentQuizData() {
-    if (!state.student.quizId) return;
-    const quiz = await api("/api/student/tests/" + state.student.quizId);
-    const byPos = quiz.answers_by_position || {};
+  async function generateStudentTasks(difficulty) {
+    state.student.lessonTypeId = Number(studentLessonTypeSelect.value);
+    state.student.difficulty = difficulty;
+    setStudentStage("generating");
+    const res = await api("/api/student/lesson-types/" + state.student.lessonTypeId + "/generate", {
+      method: "POST",
+      body: JSON.stringify({ difficulty }),
+    });
+    state.student.quizId = res.quiz_id;
+    state.student.questions = res.questions || [];
+    state.student.currentIndex = 0;
     state.student.answerMeta = {};
-    Object.keys(byPos).forEach((pos) => {
-      state.student.answerMeta[Number(pos)] = byPos[pos];
-    });
-    const result = await api("/api/student/tests/" + state.student.quizId + "/result");
-    studentResultInfo.textContent =
-      "Прогресс: " + result.answered + "/" + result.total + ". Верно: " + result.correct + ".";
-  }
-
-  function renderStudentQuestion() {
-    const questions = state.student.questions;
-    if (!questions.length) return;
-    const q = questions[state.student.currentIndex];
-    studentQuizProgress.textContent = "Вопрос " + (state.student.currentIndex + 1) + "/" + questions.length;
-    studentQuizQuestion.textContent = q.question;
-    studentQuizOptions.innerHTML = "";
-    studentQuizFeedback.classList.add("hidden");
-    studentShowSolutionBtn.classList.add("hidden");
-
-    const meta = state.student.answerMeta[q.position];
-    if (meta) {
-      studentQuizFeedback.classList.remove("hidden");
-      studentQuizFeedback.className = meta.is_correct ? "feedback feedback-ok" : "feedback feedback-bad";
-      studentQuizFeedback.textContent =
-        (meta.is_correct ? "Верно." : "Неверно.") +
-        " Ответ: " +
-        (Number(meta.selected_index) + 1) +
-        ".";
-    }
-
-    q.options.forEach((option, idx) => {
-      const btn = document.createElement("button");
-      btn.className = "option-btn";
-      btn.textContent = option;
-      btn.addEventListener("click", async () => {
-        const res = await api("/api/student/tests/answer", {
-          method: "POST",
-          body: JSON.stringify({
-            quiz_id: state.student.quizId,
-            position: q.position,
-            selected_index: idx,
-          }),
-        });
-        state.student.answerMeta[q.position] = {
-          selected_index: idx,
-          is_correct: res.is_correct,
-          solution: res.solution || "",
-          correct_option_index: res.correct_option_index,
-        };
-        studentQuizFeedback.classList.remove("hidden");
-        studentQuizFeedback.className = res.is_correct ? "feedback feedback-ok" : "feedback feedback-bad";
-        studentQuizFeedback.textContent =
-          (res.is_correct ? "Верно." : "Неверно.") +
-          " Правильный ответ: " +
-          (Number(res.correct_option_index) + 1) +
-          ".";
-        studentShowSolutionBtn.classList.remove("hidden");
-        await refreshStudentQuizData();
-      });
-      studentQuizOptions.appendChild(btn);
-    });
+    await loadStudentDashboard();
+    setStudentStage("quiz");
+    await refreshStudentQuizData();
+    renderStudentQuestion();
+    notify("Новые задачи сгенерированы");
   }
 
   pendingSendBtn.addEventListener("click", async () => {
     try {
       showError("");
-      await api("/api/access/request", {
-        method: "POST",
-        body: JSON.stringify({
-          subject: pendingSubject.value || "",
-          message: pendingMessage.value || "",
-        }),
-      });
+      await api("/api/access/request", { method: "POST", body: JSON.stringify({ subject: pendingSubject.value || "", message: pendingMessage.value || "" }) });
       await loadPendingStatus();
+    } catch (err) {
+      showError(err.message || err);
+    }
+  });
+  studentLessonTypeSelect.addEventListener("change", renderStudentLessonInfo);
+  studentBeginBtn.addEventListener("click", () => {
+    state.studentActionMode = "start";
+    studentDifficultyTitle.textContent = "Выберите сложность для прохождения";
+    setStudentStage("difficulty");
+  });
+  studentGenerateBtn.addEventListener("click", () => {
+    const lesson = currentStudentLesson();
+    if (!lesson) return;
+    if (!lesson.can_generate_now) {
+      const nextAt = lesson.next_generation_at ? new Date(lesson.next_generation_at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" }) : "";
+      return showError("Новые задачи будут доступны после " + nextAt + " (МСК)");
+    }
+    state.studentActionMode = "generate";
+    studentDifficultyTitle.textContent = "Выберите сложность для генерации";
+    setStudentStage("difficulty");
+  });
+  document.querySelectorAll(".student-difficulty").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        showError("");
+        if (state.studentActionMode === "generate") await generateStudentTasks(btn.dataset.difficulty);
+        else await startStudentTest(btn.dataset.difficulty);
+      } catch (err) {
+        const msg = String((err && err.message) || err || "");
+        if (msg.includes("No tasks yet")) showError("Заданий пока нет. Нажмите «Новые задачи» и выберите сложность.");
+        else showError(msg);
+        setStudentStage("start");
+      }
+    });
+  });
+  studentCodeCheckBtn.addEventListener("click", async () => {
+    try {
+      showError("");
+      const q = state.student.questions[state.student.currentIndex];
+      if (!q || q.type !== "code") return;
+      const code = String(studentCodeInput.value || "").trim();
+      const res = await api("/api/student/tests/code-check", {
+        method: "POST",
+        body: JSON.stringify({ quiz_id: state.student.quizId, position: q.position, code }),
+      });
+      state.student.answerMeta[q.position] = {
+        is_correct: !!res.is_correct,
+        code_text: code,
+        feedback_text: String(res.feedback || ""),
+        suggested_code: String(res.suggested_code || ""),
+      };
+      showFeedback(String(res.feedback || ""), !!res.is_correct);
+      if (res.suggested_code) {
+        studentSuggestedCode.textContent = String(res.suggested_code);
+        setHidden(studentSuggestedCodeWrap, false);
+      }
+      studentShowSolutionBtn.classList.remove("hidden");
+      await refreshStudentQuizData();
+    } catch (err) {
+      showError(err.message || err);
+    }
+  });
+  studentPrevQuestionBtn.addEventListener("click", () => {
+    if (state.student.currentIndex <= 0) return;
+    state.student.currentIndex -= 1;
+    renderStudentQuestion();
+  });
+  studentNextQuestionBtn.addEventListener("click", () => {
+    if (state.student.currentIndex >= state.student.questions.length - 1) return;
+    state.student.currentIndex += 1;
+    renderStudentQuestion();
+  });
+  studentShowSolutionBtn.addEventListener("click", () => {
+    const q = state.student.questions[state.student.currentIndex];
+    if (!q) return;
+    showFeedback("Решение: " + (q.solution || "Решение не указано."), true);
+  });
+  studentRestartBtn.addEventListener("click", async () => {
+    try {
+      showError("");
+      if (!state.student.difficulty) return setStudentStage("difficulty");
+      await startStudentTest(state.student.difficulty);
     } catch (err) {
       showError(err.message || err);
     }
@@ -650,13 +620,11 @@
       showError(err.message || err);
     }
   });
-
   adminBackToLessonTypesBtn.addEventListener("click", async () => {
     setHidden(adminLessonTypePanel, true);
     setHidden(adminLessonTypesList, false);
     await loadLessonTypes();
   });
-
   adminLessonTypeUploadBtn.addEventListener("click", async () => {
     try {
       showError("");
@@ -667,50 +635,50 @@
       showError(err.message || err);
     }
   });
-
-  adminMaterialsWrap.addEventListener("click", async (event) => {
-    const target = event.target;
-    if (!target || target.dataset.action !== "delete-material") return;
-    const materialId = Number(target.dataset.materialId);
-    if (!materialId) return;
+  adminMaterialsWrap.addEventListener("click", async (e) => {
+    const t = e.target;
+    if (!t || t.dataset.action !== "delete-material") return;
     try {
       showError("");
-      await deleteLessonTypeMaterial(materialId);
+      await api("/api/admin/lesson-types/" + state.selectedLessonTypeId + "/materials/" + Number(t.dataset.materialId), { method: "DELETE" });
+      await loadLessonTypePanel(state.selectedLessonTypeId);
+      adminLessonTypeUploadStatus.textContent = "Материал удален.";
+      notify("Материал удален");
     } catch (err) {
       showError(err.message || err);
     }
   });
-
   adminSaveTopicsBtn.addEventListener("click", async () => {
     try {
       showError("");
       await saveLessonTypeTopics();
       await loadLessonTypePanel(state.selectedLessonTypeId);
+      notify("Темы сохранены");
     } catch (err) {
       showError(err.message || err);
     }
   });
-
   adminSaveStudentsAssignBtn.addEventListener("click", async () => {
     try {
       showError("");
       await saveLessonTypeStudents();
       await loadLessonTypePanel(state.selectedLessonTypeId);
+      notify("Закрепление сохранено");
     } catch (err) {
       showError(err.message || err);
     }
   });
-
-  adminGenerateDayBtn.addEventListener("click", async () => {
-    try {
-      showError("");
-      await generateLessonTypeDay();
-    } catch (err) {
-      showError(err.message || err);
-    }
-  });
-
-  document.querySelectorAll(".admin-pack-diff").forEach((btn) => {
+  document.querySelectorAll(".admin-generate-diff").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      try {
+        showError("");
+        await generateLessonTypeByDifficulty(btn.dataset.difficulty, btn);
+      } catch (err) {
+        showError(err.message || err);
+      }
+    })
+  );
+  document.querySelectorAll(".admin-pack-diff").forEach((btn) =>
     btn.addEventListener("click", async () => {
       try {
         showError("");
@@ -718,94 +686,10 @@
       } catch (err) {
         showError(err.message || err);
       }
-    });
-  });
-
-  adminSaveScheduleBtn.addEventListener("click", async () => {
-    try {
-      showError("");
-      await saveLessonTypeSchedule();
-    } catch (err) {
-      showError(err.message || err);
-    }
-  });
-
-  if (adminSelectAllTopicsBtn) {
-    adminSelectAllTopicsBtn.addEventListener("click", () => {
-      document.querySelectorAll(".topic-checkbox").forEach((el) => {
-        el.checked = true;
-      });
-    });
-  }
-
-  if (adminClearTopicsBtn) {
-    adminClearTopicsBtn.addEventListener("click", () => {
-      document.querySelectorAll(".topic-checkbox").forEach((el) => {
-        el.checked = false;
-      });
-    });
-  }
-
-  studentBeginBtn.addEventListener("click", () => {
-    setStudentStage("mode");
-  });
-
-  studentModeManualBtn.addEventListener("click", () => {
-    showError("Режим вручную добавим следующим этапом.");
-  });
-
-  studentModeTestBtn.addEventListener("click", () => {
-    setStudentStage("difficulty");
-  });
-
-  document.querySelectorAll(".student-difficulty").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      try {
-        showError("");
-        await startStudentTest(btn.dataset.difficulty);
-      } catch (err) {
-        showError(err.message || err);
-      }
-    });
-  });
-
-  studentPrevQuestionBtn.addEventListener("click", () => {
-    if (state.student.currentIndex <= 0) return;
-    state.student.currentIndex -= 1;
-    renderStudentQuestion();
-  });
-
-  studentNextQuestionBtn.addEventListener("click", () => {
-    if (state.student.currentIndex >= state.student.questions.length - 1) return;
-    state.student.currentIndex += 1;
-    renderStudentQuestion();
-  });
-
-  studentShowSolutionBtn.addEventListener("click", () => {
-    const q = state.student.questions[state.student.currentIndex];
-    if (!q) return;
-    const meta = state.student.answerMeta[q.position];
-    if (!meta || !meta.solution) {
-      studentQuizFeedback.textContent = "Решение не указано.";
-      return;
-    }
-    studentQuizFeedback.classList.remove("hidden");
-    studentQuizFeedback.className = "feedback feedback-ok";
-    studentQuizFeedback.textContent = "Решение: " + meta.solution;
-  });
-
-  studentRestartBtn.addEventListener("click", async () => {
-    try {
-      showError("");
-      if (!state.student.difficulty) {
-        setStudentStage("difficulty");
-        return;
-      }
-      await startStudentTest(state.student.difficulty);
-    } catch (err) {
-      showError(err.message || err);
-    }
-  });
+    })
+  );
+  adminSelectAllTopicsBtn && adminSelectAllTopicsBtn.addEventListener("click", () => document.querySelectorAll(".topic-checkbox").forEach((x) => (x.checked = true)));
+  adminClearTopicsBtn && adminClearTopicsBtn.addEventListener("click", () => document.querySelectorAll(".topic-checkbox").forEach((x) => (x.checked = false)));
 
   async function bootstrap() {
     try {
@@ -816,15 +700,13 @@
       if (me.role === "admin") {
         subtitle.textContent = "Панель администратора в приложении.";
         showRoleView("admin");
-        await loadAdminRequests();
-        return;
+        return await loadAdminRequests();
       }
       if (me.role === "student") {
         subtitle.textContent = "Тестирование в приложении.";
         showRoleView("student");
         setStudentStage("start");
-        await loadStudentDashboard();
-        return;
+        return await loadStudentDashboard();
       }
       subtitle.textContent = "Доступ не выдан.";
       showRoleView("pending");
@@ -834,6 +716,5 @@
       subtitle.textContent = "Ошибка инициализации.";
     }
   }
-
   bootstrap();
 })();
